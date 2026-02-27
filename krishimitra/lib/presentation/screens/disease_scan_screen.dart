@@ -6,6 +6,7 @@ import 'package:krishimitra/services/disease_detection_service.dart';
 import 'package:krishimitra/services/esp32_camera_service.dart';
 import 'package:krishimitra/services/marathi_tts_service.dart';
 import 'package:krishimitra/domain/models/models.dart';
+import 'package:krishimitra/presentation/screens/esp32_gallery_screen.dart';
 import 'package:krishimitra/utils/app_strings.dart';
 import 'package:krishimitra/utils/app_theme.dart';
 
@@ -204,11 +205,11 @@ class _DiseaseScanScreenState extends State<DiseaseScanScreen> {
   }
 
   Future<void> _showCapturedImagesGallery() async {
-    final images = await ESP32CameraService.getAllImages();
+    final count = await ESP32CameraService.getImageCount();
 
     if (!mounted) return;
 
-    if (images.isEmpty) {
+    if (count == 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -221,14 +222,18 @@ class _DiseaseScanScreenState extends State<DiseaseScanScreen> {
       return;
     }
 
-    final selectedImage = await showModalBottomSheet<Map<String, dynamic>>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => _buildGalleryBottomSheet(images),
+    // Open the full gallery screen in pick-mode; it returns the selected image map.
+    final selectedImage = await Navigator.push<Map<String, dynamic>>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const ESP32GalleryScreen(pickMode: true),
+      ),
     );
 
-    if (selectedImage != null) {
+    // Refresh count after returning (user may have deleted images).
+    await _loadCapturedImageCount();
+
+    if (selectedImage != null && mounted) {
       setState(() {
         _selectedImage = File(selectedImage['filePath'] as String);
         _result = null;
@@ -971,9 +976,15 @@ class _DiseaseScanScreenState extends State<DiseaseScanScreen> {
                     }
                   },
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
-                      color: _isTtsSpeaking ? Colors.red.withOpacity(0.3) : Colors.white.withOpacity(0.2),
+                      color:
+                          _isTtsSpeaking
+                              ? Colors.red.withOpacity(0.3)
+                              : Colors.white.withOpacity(0.2),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(color: Colors.white.withOpacity(0.5)),
                     ),
@@ -987,7 +998,9 @@ class _DiseaseScanScreenState extends State<DiseaseScanScreen> {
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          _isTtsSpeaking ? AppStrings.stopListening : AppStrings.listenInMarathi,
+                          _isTtsSpeaking
+                              ? AppStrings.stopListening
+                              : AppStrings.listenInMarathi,
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 12,
@@ -1096,246 +1109,6 @@ class _DiseaseScanScreenState extends State<DiseaseScanScreen> {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildGalleryBottomSheet(List<Map<String, dynamic>> images) {
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.8,
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      child: Column(
-        children: [
-          // Header
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppTheme.primaryGreen,
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(20),
-              ),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.photo_library, color: Colors.white),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    AppStrings.isHindi
-                        ? 'कैप्चर की गई छवियां (${images.length})'
-                        : 'Captured Images (${images.length})',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                IconButton(
-                  onPressed: () async {
-                    final confirm = await showDialog<bool>(
-                      context: context,
-                      builder:
-                          (context) => AlertDialog(
-                            title: Text(
-                              AppStrings.isHindi ? 'सभी हटाएं?' : 'Delete All?',
-                            ),
-                            content: Text(
-                              AppStrings.isHindi
-                                  ? 'क्या आप सभी कैप्चर की गई छवियों को हटाना चाहते हैं?'
-                                  : 'Are you sure you want to delete all captured images?',
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(context, false),
-                                child: Text(
-                                  AppStrings.isHindi ? 'रद्द करें' : 'Cancel',
-                                ),
-                              ),
-                              ElevatedButton(
-                                onPressed: () => Navigator.pop(context, true),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.red,
-                                ),
-                                child: Text(
-                                  AppStrings.isHindi ? 'हटाएं' : 'Delete',
-                                ),
-                              ),
-                            ],
-                          ),
-                    );
-
-                    if (confirm == true) {
-                      await ESP32CameraService.deleteAllImages();
-                      await _loadCapturedImageCount();
-                      if (mounted) {
-                        Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              AppStrings.isHindi
-                                  ? 'सभी छवियां हटा दी गईं'
-                                  : 'All images deleted',
-                            ),
-                          ),
-                        );
-                      }
-                    }
-                  },
-                  icon: const Icon(Icons.delete_outline, color: Colors.white),
-                ),
-                IconButton(
-                  onPressed: () => Navigator.pop(context),
-                  icon: const Icon(Icons.close, color: Colors.white),
-                ),
-              ],
-            ),
-          ),
-          // Image Grid
-          Expanded(
-            child: GridView.builder(
-              padding: const EdgeInsets.all(16),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-                childAspectRatio: 0.75,
-              ),
-              itemCount: images.length,
-              itemBuilder: (context, index) {
-                final image = images[index];
-                final filePath = image['filePath'] as String;
-                final capturedAt = image['capturedAt'] as DateTime;
-                final analyzed = image['analyzed'] as bool;
-
-                return GestureDetector(
-                  onTap: () => Navigator.pop(context, image),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color:
-                            analyzed
-                                ? AppTheme.primaryGreen
-                                : Colors.grey.shade300,
-                        width: 2,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
-                          blurRadius: 4,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // Image
-                        Expanded(
-                          child: ClipRRect(
-                            borderRadius: const BorderRadius.vertical(
-                              top: Radius.circular(10),
-                            ),
-                            child:
-                                File(filePath).existsSync()
-                                    ? Image.file(
-                                      File(filePath),
-                                      fit: BoxFit.cover,
-                                    )
-                                    : Container(
-                                      color: Colors.grey.shade200,
-                                      child: const Icon(
-                                        Icons.image_not_supported,
-                                        color: Colors.grey,
-                                      ),
-                                    ),
-                          ),
-                        ),
-                        // Info
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Icon(
-                                    analyzed
-                                        ? Icons.check_circle
-                                        : Icons.circle_outlined,
-                                    size: 16,
-                                    color:
-                                        analyzed
-                                            ? AppTheme.primaryGreen
-                                            : Colors.grey,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Expanded(
-                                    child: Text(
-                                      analyzed
-                                          ? (AppStrings.isHindi
-                                              ? 'विश्लेषित'
-                                              : 'Analyzed')
-                                          : (AppStrings.isHindi
-                                              ? 'नया'
-                                              : 'New'),
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        color:
-                                            analyzed
-                                                ? AppTheme.primaryGreen
-                                                : Colors.grey,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                '${capturedAt.hour.toString().padLeft(2, '0')}:${capturedAt.minute.toString().padLeft(2, '0')}:${capturedAt.second.toString().padLeft(2, '0')}',
-                                style: const TextStyle(
-                                  fontSize: 10,
-                                  color: Colors.grey,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              SizedBox(
-                                width: double.infinity,
-                                child: ElevatedButton(
-                                  onPressed:
-                                      () => Navigator.pop(context, image),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppTheme.primaryGreen,
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 8,
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                  ),
-                                  child: Text(
-                                    AppStrings.isHindi ? 'विश्लेषण' : 'Analyze',
-                                    style: const TextStyle(fontSize: 12),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
