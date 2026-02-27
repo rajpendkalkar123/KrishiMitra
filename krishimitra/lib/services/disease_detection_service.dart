@@ -123,7 +123,7 @@ class DiseaseDetectionService {
     try {
       print('🤖 Getting detailed explanation from Gemini (lang: $language)...');
       
-      const apiKey = dotenv.env['GEMINI_API_KEY'];
+      final apiKey = dotenv.env['GEMINI_API_KEY'] ?? '';
       const geminiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 
       // Language instruction appended to the prompt
