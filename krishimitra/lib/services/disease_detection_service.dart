@@ -122,8 +122,8 @@ class DiseaseDetectionService {
     try {
       print('🤖 Getting detailed explanation from Gemini (lang: $language)...');
       
-      const apiKey = 'AIzaSyCP9zWDvrUcrOSoFnDslAfUqLlH9e1ZS_I';
-      const geminiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+      const apiKey = 'AIzaSyDX8m9TSnYFd5OBmhsOSQiYXcqwdEJ-1CI';
+      const geminiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
 
       // Language instruction appended to the prompt
       String langInstruction;
@@ -224,7 +224,7 @@ Keep the language simple and practical. Focus on actionable advice for Indian fa
 
 **प्रतिबंधात्मक उपाय:**
 • दर आठवड्याला रोग तपासणी करा.
-• जास्त पाणी देणे टाळा.
+• जास्त पाणी देणे टाळा.toa
 • हवा खेळण्यासाठी पुरेसे अंतर ठेवा.
 • सुकलेली पाने लगेच काढा.''';
       }

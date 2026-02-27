@@ -3,9 +3,9 @@ import 'package:http/http.dart' as http;
 
 class GeminiService {
   // Direct Gemini API integration - NO backend needed
-  static const String _apiKey = 'AIzaSyCP9zWDvrUcrOSoFnDslAfUqLlH9e1ZS_I';
+  static const String _apiKey = 'AIzaSyDX8m9TSnYFd5OBmhsOSQiYXcqwdEJ-1CI';
   static const String _geminiUrl = 
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
 
   // Track if last response was from AI or fallback
   static bool lastResponseWasFromAI = false;

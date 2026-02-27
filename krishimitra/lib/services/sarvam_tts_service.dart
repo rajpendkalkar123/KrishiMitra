@@ -51,7 +51,7 @@ class SarvamTtsService {
             }),
           )
           .timeout(
-            const Duration(seconds: 30),
+            const Duration(seconds: 8),
             onTimeout: () {
               throw Exception('Sarvam TTS request timed out');
             },

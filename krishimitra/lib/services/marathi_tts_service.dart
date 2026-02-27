@@ -12,6 +12,11 @@ class MarathiTtsService {
   static bool _initialized = false;
   static bool _isSpeaking = false;
   static String? _currentAudioPath;
+  // Multi-chunk streaming state
+  static List<Uint8List> _remainingAudio = [];
+  static bool _remainingReady = false;
+  static bool _remainingFailed = false;
+  static bool _hasRemainingToPlay = false;
   // Callback to notify UI of state changes
   static void Function(bool speaking)? onSpeakingChanged;
 
@@ -49,8 +54,30 @@ class MarathiTtsService {
         onSpeakingChanged?.call(false);
       });
 
-      // Audio player completion → update UI
-      _audioPlayer.onPlayerComplete.listen((_) {
+      // Audio player completion → handle remaining chunks or finish
+      _audioPlayer.onPlayerComplete.listen((_) async {
+        if (_hasRemainingToPlay) {
+          _hasRemainingToPlay = false;
+          if (_remainingReady && _remainingAudio.isNotEmpty && _isSpeaking) {
+            print('🔊 Playing remaining ${_remainingAudio.length} chunks...');
+            if (_remainingAudio.length == 1) {
+              await _playSarvamAudio(_remainingAudio.first);
+            } else {
+              final combined = _combineWavAudio(_remainingAudio);
+              if (combined != null) {
+                await _playSarvamAudio(combined);
+              } else {
+                _isSpeaking = false;
+                onSpeakingChanged?.call(false);
+              }
+            }
+            return;
+          } else if (!_remainingReady && !_remainingFailed && _isSpeaking) {
+            // Still synthesizing — wait and play
+            _waitAndPlayRemaining();
+            return;
+          }
+        }
         print('✅ Sarvam audio playback completed');
         _isSpeaking = false;
         onSpeakingChanged?.call(false);
@@ -114,40 +141,51 @@ class MarathiTtsService {
         final chunks = _chunkText(cleanedText, 490);
         print('🎙️ Split into ${chunks.length} chunks');
 
-        // Synthesize ALL chunks first, then combine audio
-        final List<Uint8List> allAudio = [];
-
-        for (int i = 0; i < chunks.length; i++) {
-          if (!_isSpeaking) return; // User stopped
-
-          print('🎙️ Synthesizing chunk ${i + 1}/${chunks.length}: ${chunks[i].length} chars');
-          final audioBytes = await SarvamTtsService.synthesize(chunks[i]);
-
-          if (audioBytes != null && audioBytes.isNotEmpty) {
-            allAudio.add(audioBytes);
-            print('✅ Chunk ${i + 1}: received ${audioBytes.length} bytes');
-          } else {
-            print('⚠️ Chunk ${i + 1} failed, falling back to flutter_tts');
-            await _speakWithFlutterTts(cleanedText);
-            return;
-          }
+        if (chunks.isEmpty) {
+          await _speakWithFlutterTts(cleanedText);
+          return;
         }
 
-        if (!_isSpeaking) return;
+        // OPTIMIZATION: Synthesize and play FIRST chunk immediately
+        // while synthesizing remaining chunks in background
+        print('🎙️ Synthesizing chunk 1/${chunks.length} (fast start)...');
+        final firstAudio = await SarvamTtsService.synthesize(chunks[0]);
 
-        // Combine all audio chunks into one WAV file
-        if (allAudio.isNotEmpty) {
-          final combined = _combineWavAudio(allAudio);
-          if (combined != null) {
-            print('🔊 Playing combined audio: ${combined.length} bytes from ${allAudio.length} chunks');
-            final played = await _playSarvamAudio(combined);
-            if (played) return; // onPlayerComplete will handle UI update
-          }
+        if (firstAudio == null || firstAudio.isEmpty || !_isSpeaking) {
+          print('⚠️ First chunk failed, falling back to flutter_tts');
+          await _speakWithFlutterTts(cleanedText);
+          return;
         }
 
-        // If we get here, Sarvam failed — fall back
-        print('⚠️ Sarvam playback failed, falling back to flutter_tts');
-        await _speakWithFlutterTts(cleanedText);
+        print('✅ Chunk 1: received ${firstAudio.length} bytes — playing immediately');
+
+        if (chunks.length == 1) {
+          // Single chunk — just play it
+          final played = await _playSarvamAudio(firstAudio);
+          if (played) return;
+          await _speakWithFlutterTts(cleanedText);
+          return;
+        }
+
+        // Multiple chunks: play first now, synthesize rest in background
+        _remainingAudio = [];
+        _remainingReady = false;
+        _remainingFailed = false;
+        _hasRemainingToPlay = true;
+
+        // Start background synthesis of remaining chunks
+        _synthesizeRemaining(chunks, _remainingAudio).then((_) {
+          _remainingReady = true;
+          print('✅ All remaining ${chunks.length - 1} chunks synthesized');
+        }).catchError((e) {
+          print('⚠️ Background synthesis failed: $e');
+          _remainingFailed = true;
+        });
+
+        // Play first chunk immediately — global listener handles the rest
+        onSpeakingChanged?.call(true);
+        await _playSarvamAudio(firstAudio);
+        return;
       } catch (e) {
         print('⚠️ Sarvam TTS failed: $e, falling back to device TTS');
         await _speakWithFlutterTts(cleanedText);
@@ -157,6 +195,55 @@ class MarathiTtsService {
 
     // ========== FALLBACK: flutter_tts ==========
     await _speakWithFlutterTts(cleanedText);
+  }
+
+  /// Synthesize chunks 1..N in background (chunk 0 is already playing)
+  static Future<void> _synthesizeRemaining(List<String> chunks, List<Uint8List> output) async {
+    for (int i = 1; i < chunks.length; i++) {
+      if (!_isSpeaking) return;
+      print('🎙️ [BG] Synthesizing chunk ${i + 1}/${chunks.length}: ${chunks[i].length} chars');
+      final audioBytes = await SarvamTtsService.synthesize(chunks[i]);
+      if (audioBytes != null && audioBytes.isNotEmpty) {
+        output.add(audioBytes);
+        print('✅ [BG] Chunk ${i + 1}: ${audioBytes.length} bytes');
+      } else {
+        throw Exception('Chunk ${i + 1} synthesis failed');
+      }
+    }
+  }
+
+  /// Wait for background synthesis to finish, then play remaining audio
+  static Future<void> _waitAndPlayRemaining() async {
+    // Poll every 500ms for up to 30s
+    for (int i = 0; i < 60; i++) {
+      if (!_isSpeaking) return;
+      await Future.delayed(const Duration(milliseconds: 500));
+      if (_remainingReady) {
+        if (_remainingAudio.isNotEmpty) {
+          if (_remainingAudio.length == 1) {
+            await _playSarvamAudio(_remainingAudio.first);
+          } else {
+            final combined = _combineWavAudio(_remainingAudio);
+            if (combined != null) {
+              await _playSarvamAudio(combined);
+            }
+          }
+        } else {
+          _isSpeaking = false;
+          onSpeakingChanged?.call(false);
+        }
+        return;
+      }
+      if (_remainingFailed) {
+        _isSpeaking = false;
+        onSpeakingChanged?.call(false);
+        return;
+      }
+    }
+    // Timeout
+    print('⚠️ Background synthesis timed out');
+    _isSpeaking = false;
+    onSpeakingChanged?.call(false);
   }
 
   /// Combine multiple WAV audio byte arrays into one
