@@ -1,10 +1,11 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:krishimitra/utils/env_config.dart';
 
 class GeminiService {
   // Direct Gemini API integration - NO backend needed
-  static const String _apiKey = 'AIzaSyCP9zWDvrUcrOSoFnDslAfUqLlH9e1ZS_I';
-  static const String _geminiUrl = 
+  static String get _apiKey => EnvConfig.geminiApiKey;
+  static const String _geminiUrl =
       'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 
   // Track if last response was from AI or fallback
@@ -30,9 +31,12 @@ class GeminiService {
 
     try {
       print('🤖 Calling Gemini API directly...');
-      print('   Crop: $cropType | Moisture: $soilMoisture | NPK: $nitrogen $phosphorus $potassium');
-      
-      final prompt = '''You are an expert agricultural advisor for Indian farmers. Analyze the following farm data and provide detailed, personalized recommendations with CLEAR EXPLANATIONS and REASONING.
+      print(
+        '   Crop: $cropType | Moisture: $soilMoisture | NPK: $nitrogen $phosphorus $potassium',
+      );
+
+      final prompt =
+          '''You are an expert agricultural advisor for Indian farmers. Analyze the following farm data and provide detailed, personalized recommendations with CLEAR EXPLANATIONS and REASONING.
 
 **IMPORTANT: Provide step-by-step reasoning for each recommendation. Explain WHY each action is needed based on the specific data provided. Consider the farm size ($farmArea acres) in ALL calculations and recommendations.**
 
@@ -234,47 +238,52 @@ Based on these SPECIFIC values, provide CUSTOMIZED recommendations with DETAILED
   ]
 }''';
 
-      final response = await http.post(
-        Uri.parse('$_geminiUrl?key=$_apiKey'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'contents': [
-            {
-              'parts': [
-                {'text': prompt}
-              ]
-            }
-          ],
-          'generationConfig': {
-            'temperature': 0.7,
-            'topK': 40,
-            'topP': 0.95,
-            'maxOutputTokens': 2048,
-          }
-        }),
-      ).timeout(
-        const Duration(seconds: 45),
-        onTimeout: () {
-          throw Exception('Request timed out after 45 seconds');
-        },
-      );
+      final response = await http
+          .post(
+            Uri.parse('$_geminiUrl?key=$_apiKey'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'contents': [
+                {
+                  'parts': [
+                    {'text': prompt},
+                  ],
+                },
+              ],
+              'generationConfig': {
+                'temperature': 0.7,
+                'topK': 40,
+                'topP': 0.95,
+                'maxOutputTokens': 2048,
+              },
+            }),
+          )
+          .timeout(
+            const Duration(seconds: 45),
+            onTimeout: () {
+              throw Exception('Request timed out after 45 seconds');
+            },
+          );
 
       print('📡 Response status: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        
+
         // Check for API errors
         if (data['error'] != null) {
           throw Exception('Gemini API Error: ${data['error']['message']}');
         }
-        
+
         if (data['candidates'] == null || data['candidates'].isEmpty) {
           throw Exception('No response candidates from Gemini');
         }
-        
-        final text = data['candidates'][0]['content']['parts'][0]['text'] as String;
-        print('✅ Gemini Response received: ${text.substring(0, text.length > 100 ? 100 : text.length)}...');
+
+        final text =
+            data['candidates'][0]['content']['parts'][0]['text'] as String;
+        print(
+          '✅ Gemini Response received: ${text.substring(0, text.length > 100 ? 100 : text.length)}...',
+        );
 
         // Clean JSON response
         String jsonString = text.trim();
@@ -283,34 +292,44 @@ Based on these SPECIFIC values, provide CUSTOMIZED recommendations with DETAILED
         } else if (jsonString.contains('```')) {
           jsonString = jsonString.split('```')[1].split('```')[0].trim();
         }
-        
+
         // Parse JSON
         final jsonData = jsonDecode(jsonString);
         lastResponseWasFromAI = true;
         print('🎉 Successfully parsed Gemini AI response!');
-        
+
         // Add isFromGeminiAI flag to the data
         jsonData['isFromGeminiAI'] = true;
-        
+
         return FarmingRecommendation.fromJson(jsonData);
       } else {
         final errorBody = response.body;
         print('❌ API Error: $errorBody');
         lastError = 'API returned status ${response.statusCode}';
-        throw Exception('Gemini API Error: ${response.statusCode} - $errorBody');
+        throw Exception(
+          'Gemini API Error: ${response.statusCode} - $errorBody',
+        );
       }
     } catch (e) {
       print('❌ Error calling Gemini: $e');
       lastError = e.toString();
-      
+
       // Return intelligent fallback data based on inputs
       return _getIntelligentFallback(
-        cropType, soilMoisture, nitrogen, phosphorus, potassium, 
-        temperature, pH, growthStage, rainfall, farmArea
+        cropType,
+        soilMoisture,
+        nitrogen,
+        phosphorus,
+        potassium,
+        temperature,
+        pH,
+        growthStage,
+        rainfall,
+        farmArea,
       );
     }
   }
-  
+
   /// Intelligent fallback when API is unavailable
   static FarmingRecommendation _getIntelligentFallback(
     String crop,
@@ -325,128 +344,180 @@ Based on these SPECIFIC values, provide CUSTOMIZED recommendations with DETAILED
     double farmArea,
   ) {
     print('⚠️ Using intelligent fallback analysis...');
-    
+
     // Generate dynamic recommendations based on actual input values
     String irrigationAction;
     double waterAmount;
     String irrigationReason;
-    
+
     if (moisture < 30) {
       irrigationAction = 'START IMMEDIATELY';
       waterAmount = 3000;
-      irrigationReason = 'CRITICAL: Soil moisture at ${moisture.toStringAsFixed(1)}% is dangerously low for $crop. Immediate irrigation required to prevent crop stress and yield loss.';
+      irrigationReason =
+          'CRITICAL: Soil moisture at ${moisture.toStringAsFixed(1)}% is dangerously low for $crop. Immediate irrigation required to prevent crop stress and yield loss.';
     } else if (moisture < 50) {
       irrigationAction = 'START';
       waterAmount = 2000;
-      irrigationReason = 'Soil moisture at ${moisture.toStringAsFixed(1)}% is below optimal (50-65%) for $crop at $growthStage stage. Begin irrigation to support healthy growth.';
+      irrigationReason =
+          'Soil moisture at ${moisture.toStringAsFixed(1)}% is below optimal (50-65%) for $crop at $growthStage stage. Begin irrigation to support healthy growth.';
     } else if (moisture > 80) {
       irrigationAction = 'STOP';
       waterAmount = 0;
-      irrigationReason = 'WARNING: Soil moisture at ${moisture.toStringAsFixed(1)}% is excessive. Stop irrigation immediately to prevent waterlogging and root diseases.';
+      irrigationReason =
+          'WARNING: Soil moisture at ${moisture.toStringAsFixed(1)}% is excessive. Stop irrigation immediately to prevent waterlogging and root diseases.';
     } else if (moisture > 65) {
       irrigationAction = 'REDUCE';
       waterAmount = 800;
-      irrigationReason = 'Soil moisture at ${moisture.toStringAsFixed(1)}% is slightly high. Reduce irrigation frequency to optimize water usage.';
+      irrigationReason =
+          'Soil moisture at ${moisture.toStringAsFixed(1)}% is slightly high. Reduce irrigation frequency to optimize water usage.';
     } else {
       irrigationAction = 'MAINTAIN';
       waterAmount = 1200;
-      irrigationReason = 'Soil moisture at ${moisture.toStringAsFixed(1)}% is in optimal range (50-65%) for $crop. Maintain current irrigation schedule.';
+      irrigationReason =
+          'Soil moisture at ${moisture.toStringAsFixed(1)}% is in optimal range (50-65%) for $crop. Maintain current irrigation schedule.';
     }
-    
+
     // Fertilizer recommendation based on NPK analysis
     String fertilizerType;
     double fertilizerQty;
     String fertilizerReason;
-    
+
     if (n < 30 && p < 25 && k < 25) {
       fertilizerType = 'NPK 20:20:20 (Balanced)';
       fertilizerQty = 35;
-      fertilizerReason = 'All nutrients are low - N: ${n.toStringAsFixed(0)}, P: ${p.toStringAsFixed(0)}, K: ${k.toStringAsFixed(0)} kg/ha. Apply balanced NPK fertilizer for overall nutrient boost.';
+      fertilizerReason =
+          'All nutrients are low - N: ${n.toStringAsFixed(0)}, P: ${p.toStringAsFixed(0)}, K: ${k.toStringAsFixed(0)} kg/ha. Apply balanced NPK fertilizer for overall nutrient boost.';
     } else if (n < 30) {
       fertilizerType = 'Urea (46-0-0)';
       fertilizerQty = 30;
-      fertilizerReason = 'Nitrogen at ${n.toStringAsFixed(0)} kg/ha is deficient. Apply Urea for vegetative growth, leaf development and chlorophyll production.';
+      fertilizerReason =
+          'Nitrogen at ${n.toStringAsFixed(0)} kg/ha is deficient. Apply Urea for vegetative growth, leaf development and chlorophyll production.';
     } else if (p < 20) {
       fertilizerType = 'DAP (18-46-0)';
       fertilizerQty = 28;
-      fertilizerReason = 'Phosphorus at ${p.toStringAsFixed(0)} kg/ha is low. Apply DAP to boost root development and flower/fruit formation.';
+      fertilizerReason =
+          'Phosphorus at ${p.toStringAsFixed(0)} kg/ha is low. Apply DAP to boost root development and flower/fruit formation.';
     } else if (k < 20) {
       fertilizerType = 'MOP - Muriate of Potash (0-0-60)';
       fertilizerQty = 22;
-      fertilizerReason = 'Potassium at ${k.toStringAsFixed(0)} kg/ha needs improvement. Apply MOP for disease resistance and grain/fruit quality.';
+      fertilizerReason =
+          'Potassium at ${k.toStringAsFixed(0)} kg/ha needs improvement. Apply MOP for disease resistance and grain/fruit quality.';
     } else {
       fertilizerType = 'Micronutrient Mix (Zn, Fe, Mn, B)';
       fertilizerQty = 10;
-      fertilizerReason = 'NPK levels are good (${n.toStringAsFixed(0)}/${p.toStringAsFixed(0)}/${k.toStringAsFixed(0)}). Apply micronutrients for optimal crop performance.';
+      fertilizerReason =
+          'NPK levels are good (${n.toStringAsFixed(0)}/${p.toStringAsFixed(0)}/${k.toStringAsFixed(0)}). Apply micronutrients for optimal crop performance.';
     }
-    
+
     // Risk alerts based on conditions
     List<String> risks = [];
     if (temperature > 38) {
-      risks.add('🔴 SEVERE: Temperature at ${temperature.toStringAsFixed(1)}°C causing heat stress. Irrigate during cooler hours (5-7 AM), apply mulch, and consider shade nets.');
+      risks.add(
+        '🔴 SEVERE: Temperature at ${temperature.toStringAsFixed(1)}°C causing heat stress. Irrigate during cooler hours (5-7 AM), apply mulch, and consider shade nets.',
+      );
     } else if (temperature > 35) {
-      risks.add('🟠 WARNING: High temperature (${temperature.toStringAsFixed(1)}°C) may stress crops. Increase irrigation frequency and avoid midday field work.');
+      risks.add(
+        '🟠 WARNING: High temperature (${temperature.toStringAsFixed(1)}°C) may stress crops. Increase irrigation frequency and avoid midday field work.',
+      );
     }
     if (temperature < 10) {
-      risks.add('🔵 COLD ALERT: Temperature at ${temperature.toStringAsFixed(1)}°C risks frost damage. Use protective covers and avoid irrigation at night.');
+      risks.add(
+        '🔵 COLD ALERT: Temperature at ${temperature.toStringAsFixed(1)}°C risks frost damage. Use protective covers and avoid irrigation at night.',
+      );
     }
     if (moisture > 75 && temperature > 25) {
-      risks.add('🟡 DISEASE RISK: High moisture (${moisture.toStringAsFixed(1)}%) + warm temperature = ideal conditions for fungal diseases. Monitor closely and apply preventive fungicide.');
+      risks.add(
+        '🟡 DISEASE RISK: High moisture (${moisture.toStringAsFixed(1)}%) + warm temperature = ideal conditions for fungal diseases. Monitor closely and apply preventive fungicide.',
+      );
     }
     if (pH < 5.5) {
-      risks.add('⚠️ ACIDIC SOIL: pH at $pH is too acidic. Apply agricultural lime (200-400 kg/acre) to correct pH and improve nutrient availability.');
+      risks.add(
+        '⚠️ ACIDIC SOIL: pH at $pH is too acidic. Apply agricultural lime (200-400 kg/acre) to correct pH and improve nutrient availability.',
+      );
     }
     if (pH > 8.0) {
-      risks.add('⚠️ ALKALINE SOIL: pH at $pH is too alkaline. Apply gypsum or sulfur to lower pH. Some nutrients may be locked up.');
+      risks.add(
+        '⚠️ ALKALINE SOIL: pH at $pH is too alkaline. Apply gypsum or sulfur to lower pH. Some nutrients may be locked up.',
+      );
     }
     if (rainfall > 100) {
-      risks.add('🌧️ HEAVY RAIN: ${rainfall.toStringAsFixed(0)}mm weekly rainfall may cause waterlogging. Ensure proper drainage and delay fertilizer application.');
+      risks.add(
+        '🌧️ HEAVY RAIN: ${rainfall.toStringAsFixed(0)}mm weekly rainfall may cause waterlogging. Ensure proper drainage and delay fertilizer application.',
+      );
     }
     if (risks.isEmpty) {
-      risks.add('✅ No major risks detected based on current conditions. Continue regular monitoring.');
+      risks.add(
+        '✅ No major risks detected based on current conditions. Continue regular monitoring.',
+      );
     }
-    
+
     // Calculate yield improvement based on optimization potential
     Map<String, double> cropBaseYields = {
-      'Wheat': 18, 'Rice': 22, 'Sugarcane': 350, 'Cotton': 8,
-      'Maize': 25, 'Soybean': 12, 'Groundnut': 10, 'Gram': 8,
-      'Jowar': 10, 'Bajra': 9, 'Tur': 6, 'Moong': 5
+      'Wheat': 18,
+      'Rice': 22,
+      'Sugarcane': 350,
+      'Cotton': 8,
+      'Maize': 25,
+      'Soybean': 12,
+      'Groundnut': 10,
+      'Gram': 8,
+      'Jowar': 10,
+      'Bajra': 9,
+      'Tur': 6,
+      'Moong': 5,
     };
     double baseYield = cropBaseYields[crop] ?? 15;
-    
+
     double yieldImprovement = 0;
     if (moisture < 40 || moisture > 75) yieldImprovement += 12;
     if (n < 35 || p < 25 || k < 25) yieldImprovement += 15;
     if (temperature > 35 || temperature < 12) yieldImprovement += 8;
     if (pH < 6.0 || pH > 7.5) yieldImprovement += 5;
-    
+
     double withAI = baseYield * (1 + yieldImprovement / 100);
-    
+
     // Market price estimates
     Map<String, double> marketPrices = {
-      'Wheat': 2400, 'Rice': 2800, 'Sugarcane': 350, 'Cotton': 6500,
-      'Maize': 2100, 'Soybean': 4500, 'Groundnut': 5800, 'Gram': 5200,
-      'Jowar': 3200, 'Bajra': 2500, 'Tur': 6800, 'Moong': 7500
+      'Wheat': 2400,
+      'Rice': 2800,
+      'Sugarcane': 350,
+      'Cotton': 6500,
+      'Maize': 2100,
+      'Soybean': 4500,
+      'Groundnut': 5800,
+      'Gram': 5200,
+      'Jowar': 3200,
+      'Bajra': 2500,
+      'Tur': 6800,
+      'Moong': 7500,
     };
     double marketPrice = marketPrices[crop] ?? 3000;
-    
+
     return FarmingRecommendation(
       irrigationRecommendation: IrrigationRec(
         action: irrigationAction,
         waterAmount: waterAmount,
-        timing: temperature > 32 ? 'Early morning (5-7 AM) or evening (5-7 PM) to reduce evaporation' : 'Morning (6-9 AM) is optimal',
-        frequency: moisture < 40 ? 'Every 2-3 days until moisture reaches 50%' : (moisture > 65 ? 'Every 5-7 days' : 'Every 3-4 days'),
+        timing:
+            temperature > 32
+                ? 'Early morning (5-7 AM) or evening (5-7 PM) to reduce evaporation'
+                : 'Morning (6-9 AM) is optimal',
+        frequency:
+            moisture < 40
+                ? 'Every 2-3 days until moisture reaches 50%'
+                : (moisture > 65 ? 'Every 5-7 days' : 'Every 3-4 days'),
         reason: irrigationReason,
       ),
       fertilizerRecommendation: FertilizerRec(
         type: fertilizerType,
         quantity: fertilizerQty,
-        applicationMethod: growthStage == 'Seedling' 
-            ? 'Broadcast evenly and incorporate into soil' 
-            : 'Band placement 5-7 cm away from plant base',
-        timing: growthStage == 'Flowering' || growthStage == 'Fruiting'
-            ? 'Apply within 2-3 days for critical growth support'
-            : 'Apply within next 5-7 days, preferably before irrigation',
+        applicationMethod:
+            growthStage == 'Seedling'
+                ? 'Broadcast evenly and incorporate into soil'
+                : 'Band placement 5-7 cm away from plant base',
+        timing:
+            growthStage == 'Flowering' || growthStage == 'Fruiting'
+                ? 'Apply within 2-3 days for critical growth support'
+                : 'Apply within next 5-7 days, preferably before irrigation',
         reason: fertilizerReason,
       ),
       cropHealthTips: [
@@ -466,14 +537,28 @@ Based on these SPECIFIC values, provide CUSTOMIZED recommendations with DETAILED
         costSavings: CostSavings(
           water: moisture > 50 ? 4500 : 2000,
           fertilizer: (n > 40 && p > 30 && k > 30) ? 4000 : 1800,
-          total: (moisture > 50 ? 4500 : 2000) + ((n > 40 && p > 30 && k > 30) ? 4000 : 1800),
+          total:
+              (moisture > 50 ? 4500 : 2000) +
+              ((n > 40 && p > 30 && k > 30) ? 4000 : 1800),
         ),
       ),
       riskAlerts: risks,
       weeklyActionPlan: [
-        WeeklyAction(day: 'Day 1-2', action: '$irrigationAction irrigation with ${waterAmount.toStringAsFixed(0)}L/acre. ${fertilizerQty > 20 ? "Apply $fertilizerType (${fertilizerQty.toStringAsFixed(0)} kg/acre)" : "Monitor crop health"}'),
-        WeeklyAction(day: 'Day 3-4', action: 'Scout for pests and diseases. Check soil moisture - target 50-65%. ${temperature > 33 ? "Ensure adequate water during peak heat." : "Regular monitoring sufficient."}'),
-        WeeklyAction(day: 'Day 5-7', action: 'Evaluate crop response to inputs. Plan next irrigation cycle. ${rainfall > 30 ? "Account for rainfall in irrigation planning." : "Prepare for next irrigation if needed."}'),
+        WeeklyAction(
+          day: 'Day 1-2',
+          action:
+              '$irrigationAction irrigation with ${waterAmount.toStringAsFixed(0)}L/acre. ${fertilizerQty > 20 ? "Apply $fertilizerType (${fertilizerQty.toStringAsFixed(0)} kg/acre)" : "Monitor crop health"}',
+        ),
+        WeeklyAction(
+          day: 'Day 3-4',
+          action:
+              'Scout for pests and diseases. Check soil moisture - target 50-65%. ${temperature > 33 ? "Ensure adequate water during peak heat." : "Regular monitoring sufficient."}',
+        ),
+        WeeklyAction(
+          day: 'Day 5-7',
+          action:
+              'Evaluate crop response to inputs. Plan next irrigation cycle. ${rainfall > 30 ? "Account for rainfall in irrigation planning." : "Prepare for next irrigation if needed."}',
+        ),
       ],
       marketTiming: MarketTiming(
         optimalHarvestTime: _getHarvestTiming(growthStage, crop),
@@ -483,7 +568,7 @@ Based on these SPECIFIC values, provide CUSTOMIZED recommendations with DETAILED
       isFromGeminiAI: false, // This is fallback data
     );
   }
-  
+
   static String _getGrowthStageTip(String stage, String crop) {
     switch (stage) {
       case 'Seedling':
@@ -500,7 +585,7 @@ Based on these SPECIFIC values, provide CUSTOMIZED recommendations with DETAILED
         return 'Monitor crop health daily. Maintain optimal growing conditions.';
     }
   }
-  
+
   static String _getTemperatureTip(double temp, String crop) {
     if (temp > 38) {
       return 'HEAT STRESS! Apply irrigation during cooler hours, use mulch, consider shade nets if possible.';
@@ -514,7 +599,7 @@ Based on these SPECIFIC values, provide CUSTOMIZED recommendations with DETAILED
       return 'Moderate conditions. Continue regular care practices.';
     }
   }
-  
+
   static String _getHarvestTiming(String stage, String crop) {
     switch (stage) {
       case 'Maturity':
@@ -529,7 +614,7 @@ Based on these SPECIFIC values, provide CUSTOMIZED recommendations with DETAILED
         return 'Early stage - 12-16 weeks to harvest for most varieties.';
     }
   }
-  
+
   static String _getMarketRecommendation(String crop, double price) {
     final month = DateTime.now().month;
     if (month >= 3 && month <= 5) {
@@ -600,15 +685,21 @@ class FarmingRecommendation {
 
   factory FarmingRecommendation.fromJson(Map<String, dynamic> json) {
     return FarmingRecommendation(
-      irrigationRecommendation: IrrigationRec.fromJson(json['irrigationRecommendation'] ?? {}),
-      fertilizerRecommendation: FertilizerRec.fromJson(json['fertilizerRecommendation'] ?? {}),
+      irrigationRecommendation: IrrigationRec.fromJson(
+        json['irrigationRecommendation'] ?? {},
+      ),
+      fertilizerRecommendation: FertilizerRec.fromJson(
+        json['fertilizerRecommendation'] ?? {},
+      ),
       cropHealthTips: List<String>.from(json['cropHealthTips'] ?? []),
       expectedYield: ExpectedYield.fromJson(json['expectedYield'] ?? {}),
       profitAnalysis: ProfitAnalysis.fromJson(json['profitAnalysis'] ?? {}),
       riskAlerts: List<String>.from(json['riskAlerts'] ?? []),
-      weeklyActionPlan: (json['weeklyActionPlan'] as List?)
-          ?.map((e) => WeeklyAction.fromJson(e))
-          .toList() ?? [],
+      weeklyActionPlan:
+          (json['weeklyActionPlan'] as List?)
+              ?.map((e) => WeeklyAction.fromJson(e))
+              .toList() ??
+          [],
       marketTiming: MarketTiming.fromJson(json['marketTiming'] ?? {}),
       isFromGeminiAI: json['isFromGeminiAI'] ?? true,
     );
@@ -703,7 +794,8 @@ class ProfitAnalysis {
   factory ProfitAnalysis.fromJson(Map<String, dynamic> json) {
     return ProfitAnalysis(
       estimatedRevenueWithAI: (json['estimatedRevenueWithAI'] ?? 0).toDouble(),
-      estimatedRevenueWithoutAI: (json['estimatedRevenueWithoutAI'] ?? 0).toDouble(),
+      estimatedRevenueWithoutAI:
+          (json['estimatedRevenueWithoutAI'] ?? 0).toDouble(),
       additionalProfitWithAI: (json['additionalProfitWithAI'] ?? 0).toDouble(),
       costSavings: CostSavings.fromJson(json['costSavings'] ?? {}),
     );
@@ -757,9 +849,11 @@ class MarketTiming {
 
   factory MarketTiming.fromJson(Map<String, dynamic> json) {
     return MarketTiming(
-      optimalHarvestTime: json['optimalHarvestTime']?.toString() ?? 'Check market conditions',
+      optimalHarvestTime:
+          json['optimalHarvestTime']?.toString() ?? 'Check market conditions',
       expectedMarketPrice: (json['expectedMarketPrice'] ?? 0).toDouble(),
-      recommendation: json['recommendation']?.toString() ?? 'Monitor market prices',
+      recommendation:
+          json['recommendation']?.toString() ?? 'Monitor market prices',
     );
   }
 }

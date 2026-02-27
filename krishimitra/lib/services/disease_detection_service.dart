@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:path/path.dart' as path;
 import 'package:krishimitra/domain/models/models.dart';
+import 'package:krishimitra/utils/env_config.dart';
 
 class DiseaseDetectionService {
   static const String _apiUrl =
@@ -121,24 +122,28 @@ class DiseaseDetectionService {
   }) async {
     try {
       print('🤖 Getting detailed explanation from Gemini (lang: $language)...');
-      
-      const apiKey = 'AIzaSyCP9zWDvrUcrOSoFnDslAfUqLlH9e1ZS_I';
-      const geminiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+
+      final apiKey = EnvConfig.geminiApiKey;
+      const geminiUrl =
+          'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 
       // Language instruction appended to the prompt
       String langInstruction;
       switch (language) {
         case 'mr':
-          langInstruction = '\n\nIMPORTANT: कृपया संपूर्ण उत्तर मराठीत द्या. महाराष्ट्रातील शेतकऱ्यांसाठी सोप्या व समजण्यायोग्य भाषेत लिहा. Use Devanagari script only.';
+          langInstruction =
+              '\n\nIMPORTANT: कृपया संपूर्ण उत्तर मराठीत द्या. महाराष्ट्रातील शेतकऱ्यांसाठी सोप्या व समजण्यायोग्य भाषेत लिहा. Use Devanagari script only.';
           break;
         case 'hi':
-          langInstruction = '\n\nIMPORTANT: कृपया पूरा उत्तर हिंदी में दें। भारतीय किसानों के लिए सरल भाषा में लिखें। Use Devanagari script only.';
+          langInstruction =
+              '\n\nIMPORTANT: कृपया पूरा उत्तर हिंदी में दें। भारतीय किसानों के लिए सरल भाषा में लिखें। Use Devanagari script only.';
           break;
         default:
           langInstruction = '';
       }
 
-      final prompt = '''You are an expert plant pathologist and agricultural advisor. A farmer has detected a plant disease using AI.
+      final prompt =
+          '''You are an expert plant pathologist and agricultural advisor. A farmer has detected a plant disease using AI.
 
 **Detection Results:**
 - Plant: $plant
@@ -210,7 +215,11 @@ Keep the language simple and practical. Focus on actionable advice for Indian fa
     }
   }
 
-  static String _getFallbackExplanation(String plant, String disease, [String language = 'mr']) {
+  static String _getFallbackExplanation(
+    String plant,
+    String disease, [
+    String language = 'mr',
+  ]) {
     if (language == 'mr') {
       if (disease.toLowerCase().contains('healthy')) {
         return '''✅ **चांगली बातमी!** तुमची $plant वनस्पती निरोगी दिसते!

@@ -1,12 +1,12 @@
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:http/http.dart' as http;
+import 'package:krishimitra/utils/env_config.dart';
 
 /// Service for Sarvam AI Bulbul TTS (Marathi voice synthesis)
 class SarvamTtsService {
   static const String _apiUrl = 'https://api.sarvam.ai/text-to-speech';
-  // TODO: Replace with actual API key from user
-  static const String _apiKey = 'sk_s4jf2rnv_6naiSy7ZhTW6JsJkN4LO5U9U';
+  static String get _apiKey => EnvConfig.sarvamApiKey;
   static const int _maxCharsPerRequest = 500;
 
   /// Convert text to speech using Sarvam Bulbul v2
@@ -28,9 +28,10 @@ class SarvamTtsService {
 
     try {
       // Truncate to max chars if needed
-      final truncatedText = text.length > _maxCharsPerRequest
-          ? text.substring(0, _maxCharsPerRequest)
-          : text;
+      final truncatedText =
+          text.length > _maxCharsPerRequest
+              ? text.substring(0, _maxCharsPerRequest)
+              : text;
 
       print('🎙️ Requesting Sarvam TTS for ${truncatedText.length} chars...');
 
