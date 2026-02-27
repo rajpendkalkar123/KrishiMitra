@@ -1,17 +1,48 @@
-# Datasets and large files
+# ====================================
+# Datasets and Large Files
+# ====================================
 /dataset
-.env
-# GitHub workflows (if not using)
-/.github
+/datasets
+*.csv
+*.xlsx
+*.xls
+data/*.csv
+# Keep specific data files if needed
+!crop-recommender-production/data/crop_and_fertilizer.csv
+!irrigation/TARP.csv
 
-# IDE/Editor files
-.vscode
-.idea
+# ====================================
+# Environment Variables & Secrets
+# ====================================
+.env
+.env.local
+.env.*.local
+.env.production
+.env.development
+*.key
+*.pem
+secrets.json
+config.json
+credentials.json
+
+# ====================================
+# IDE/Editor Files
+# ====================================
+.vscode/
+.idea/
 *.swp
 *.swo
 *~
+.project
+.classpath
+.settings/
+*.sublime-project
+*.sublime-workspace
+.metadata
 
-# OS generated files
+# ====================================
+# OS Generated Files
+# ====================================
 .DS_Store
 .DS_Store?
 ._*
@@ -20,20 +51,21 @@
 ehthumbs.db
 Thumbs.db
 desktop.ini
+$RECYCLE.BIN/
 
+# ====================================
 # Python
+# ====================================
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
-build/
 develop-eggs/
 dist/
 downloads/
 eggs/
 .eggs/
-# lib/ and lib64/ removed - conflicts with Flutter lib/ source folder
 parts/
 sdist/
 var/
@@ -51,26 +83,47 @@ MANIFEST
 .pytest_cache/
 .coverage
 htmlcov/
+.tox/
+.nox/
+.hypothesis/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/
+celerybeat-schedule
 *.log
-# Note: lib/ and lib64/ removed to allow Flutter lib/ folder
+pip-log.txt
+pip-delete-this-directory.txt
 
-# Virtual environments
+# Virtual Environments
 venv/
 ENV/
 env/
-.venv
+.venv/
+virtualenv/
+pipenv/
+.virtualenv/
+poetry.lock
 
+# ====================================
 # Node.js
+# ====================================
 node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+lerna-debug.log*
+.npm
+.eslintcache
+.node_repl_history
+.yarn-integrity
 package-lock.json
-.env
-.env.local
-.env.*.local
+yarn.lock
 
+# ====================================
 # Flutter/Dart
+# ====================================
 .dart_tool/
 .flutter-plugins
 .flutter-plugins-dependencies
@@ -85,11 +138,71 @@ flutter_*.log
 **/.flutter-plugins
 **/.flutter-plugins-dependencies
 
+# Flutter build outputs
+**/build/app/
+**/build/audioplayers_android/
+**/build/camera_android/
+**/build/flutter_plugin_android_lifecycle/
+**/build/flutter_tts/
+**/build/geolocator_android/
+**/build/image_picker_android/
+**/build/native_assets/
+**/build/path_provider_android/
+**/build/permission_handler_android/
+**/build/sqflite_android/
+**/build/**/
+
+# Android related
+*.iml
+.gradle/
+local.properties
+.gradletasknamecache
+gradle-app.setting
+!gradle-wrapper.jar
+.externalNativeBuild
+captures/
+*.apk
+*.ap_
+*.dex
+*.class
+bin/
+gen/
+out/
+release/
+
+# iOS related
+*.ipa
+*.dSYM.zip
+*.dSYM
+.symlinks/
+profile
+xcuserdata
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+*.moved-aside
+DerivedData
+*.hmap
+*.xccheckout
+*.xcscmblueprint
+Pods/
+.slather
+
+# ====================================
 # Jupyter Notebook
+# ====================================
 .ipynb_checkpoints
 */.ipynb_checkpoints/*
+*.ipynb_checkpoints
 
-# Machine Learning models
+# ====================================
+# Machine Learning Models & Weights
+# ====================================
 *.h5
 *.keras
 *.pkl
@@ -98,20 +211,51 @@ flutter_*.log
 *.onnx
 *.tflite
 *.pb
+*.pt
+*.model
+*.weights
+trained_model.*
+# Keep specific model files if needed
+!crop_recommendation_model.h5
+model_weights/
+checkpoints/
 
-# Test files (if you want to keep them out of repo)
+# ====================================
+# Database Files
+# ====================================
+*.db
+*.sqlite
+*.sqlite3
+*.db-shm
+*.db-wal
+
+# ====================================
+# Test & Debug Files
+# ====================================
 test_*.py
 *_test.py
 simple_*.py
+debug.log
+*.test.js
+coverage/
+*.cover
 
-# Temporary files
+# ====================================
+# Temporary & Backup Files
+# ====================================
 *.tmp
 *.temp
 *.bak
 *.swp
 *~
+*.old
+*.orig
+.cache
+cache/
 
+# ====================================
 # Secrets & Signing
+# ====================================
 *.jks
 *.keystore
 key.properties
@@ -120,10 +264,31 @@ google-services.json
 **/secrets/
 *.secret
 
-# Android generated
+# ====================================
+# Android Generated
+# ====================================
 **/android/**/GeneratedPluginRegistrant.java
 **/android/.gradle/
 
+# ====================================
 # Unity (if AR integrated later)
+# ====================================
 **/unityLibrary/
 *.unitypackage
+
+# ====================================
+# Deployment & Build Files
+# ====================================
+render.yaml
+.dockerignore
+docker-compose.override.yml
+
+# ====================================
+# Miscellaneous
+# ====================================
+*.zip
+*.tar
+*.tar.gz
+*.rar
+*.7z
+.history/
