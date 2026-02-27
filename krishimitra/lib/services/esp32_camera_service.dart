@@ -140,6 +140,16 @@ class ESP32CameraService {
     }
   }
 
+  /// Delete multiple images by IDs (batch delete)
+  static Future<int> deleteMultipleImages(List<String> imageIds) async {
+    int deleted = 0;
+    for (final id in imageIds) {
+      await deleteImage(id);
+      deleted++;
+    }
+    return deleted;
+  }
+
   /// Delete all images
   static Future<void> deleteAllImages() async {
     final images = await getAllImages();
