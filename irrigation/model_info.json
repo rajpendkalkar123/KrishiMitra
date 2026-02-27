@@ -1,0 +1,25 @@
+{
+  "model_type": "RandomForestClassifier",
+  "n_estimators": 100,
+  "features": [
+    "Soil Moisture",
+    "Temperature",
+    " Soil Humidity",
+    "Time",
+    "Air temperature (C)",
+    "Wind speed (Km/h)",
+    "Air humidity (%)",
+    "Wind gust (Km/h)",
+    "Pressure (KPa)",
+    "ph",
+    "rainfall",
+    "N",
+    "P",
+    "K"
+  ],
+  "classes": [
+    "OFF",
+    "ON"
+  ],
+  "accuracy": 0.9942
+}
