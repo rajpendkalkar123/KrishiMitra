@@ -1,0 +1,24 @@
+services:
+  # Plant Disease Detector (CNN Model)
+  - type: web
+    name: plant-disease-detector
+    runtime: python
+    plan: free
+    rootDir: cnn model
+    buildCommand: pip install -r requirements.txt
+    startCommand: streamlit run main.py --server.port $PORT --server.address 0.0.0.0 --server.headless true
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+
+  # Crop Recommender
+  - type: web
+    name: krishimitra-crop-recommender
+    runtime: python
+    plan: free
+    rootDir: crop-recommender-production
+    buildCommand: pip install -r requirements.txt
+    startCommand: streamlit run app.py --server.port $PORT --server.address 0.0.0.0 --server.headless true
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
