@@ -110,3 +110,20 @@ simple_*.py
 *.bak
 *.swp
 *~
+
+# Secrets & Signing
+*.jks
+*.keystore
+key.properties
+local.properties
+google-services.json
+**/secrets/
+*.secret
+
+# Android generated
+**/android/**/GeneratedPluginRegistrant.java
+**/android/.gradle/
+
+# Unity (if AR integrated later)
+**/unityLibrary/
+*.unitypackage
