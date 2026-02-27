@@ -1,12 +1,12 @@
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:http/http.dart' as http;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 /// Service for Sarvam AI Bulbul TTS (Marathi voice synthesis)
 class SarvamTtsService {
   static const String _apiUrl = 'https://api.sarvam.ai/text-to-speech';
-  // TODO: Replace with actual API key from user
-  static const String _apiKey = 'sk_s4jf2rnv_6naiSy7ZhTW6JsJkN4LO5U9U';
+  static String get _apiKey => dotenv.env['SARVAM_API_KEY'] ?? '';
   static const int _maxCharsPerRequest = 500;
 
   /// Convert text to speech using Sarvam Bulbul v2

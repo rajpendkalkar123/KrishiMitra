@@ -1,9 +1,10 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class GeminiService {
   // Direct Gemini API integration - NO backend needed
-  static const String _apiKey = 'AIzaSyDX8m9TSnYFd5OBmhsOSQiYXcqwdEJ-1CI';
+  static String get _apiKey => dotenv.env['GEMINI_API_KEY'] ?? '';
   static const String _geminiUrl = 
       'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
 

@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:path/path.dart' as path;
 import 'package:krishimitra/domain/models/models.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class DiseaseDetectionService {
   static const String _apiUrl =
@@ -122,8 +123,8 @@ class DiseaseDetectionService {
     try {
       print('🤖 Getting detailed explanation from Gemini (lang: $language)...');
       
-      const apiKey = 'AIzaSyDX8m9TSnYFd5OBmhsOSQiYXcqwdEJ-1CI';
-      const geminiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
+      const apiKey = dotenv.env['GEMINI_API_KEY'];
+      const geminiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 
       // Language instruction appended to the prompt
       String langInstruction;
@@ -224,7 +225,7 @@ Keep the language simple and practical. Focus on actionable advice for Indian fa
 
 **प्रतिबंधात्मक उपाय:**
 • दर आठवड्याला रोग तपासणी करा.
-• जास्त पाणी देणे टाळा.toa
+• जास्त पाणी देणे टाळा.
 • हवा खेळण्यासाठी पुरेसे अंतर ठेवा.
 • सुकलेली पाने लगेच काढा.''';
       }

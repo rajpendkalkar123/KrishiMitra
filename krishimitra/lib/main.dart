@@ -14,8 +14,13 @@ import 'package:krishimitra/services/marathi_tts_service.dart';
 import 'package:krishimitra/utils/app_strings.dart';
 import 'package:krishimitra/utils/app_theme.dart';
 
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Load environment variables from .env file
+  await dotenv.load(fileName: ".env");
 
   // Let system UI overlay blend with the app
   SystemChrome.setSystemUIOverlayStyle(

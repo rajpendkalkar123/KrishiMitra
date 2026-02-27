@@ -73,6 +73,7 @@ dependencies:
 
   # Location
   geolocator: ^9.0.2
+  flutter_dotenv: ^6.0.0
 
 dev_dependencies:
   flutter_test:
@@ -98,6 +99,7 @@ flutter:
 
   # Assets
   assets:
+    - .env
     - assets/data/
     - assets/models/
 
