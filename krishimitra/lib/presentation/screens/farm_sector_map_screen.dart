@@ -6,9 +6,11 @@ import 'package:geolocator/geolocator.dart';
 import 'package:krishimitra/domain/models/farm_models.dart';
 import 'package:krishimitra/services/farm_database_service.dart';
 import 'package:krishimitra/utils/app_theme.dart';
+import 'package:krishimitra/presentation/widgets/configure_sensor_dialog.dart';
+
 class FarmSectorMapScreen extends ConsumerStatefulWidget {
   final Farm? existingFarm;
-  
+
   const FarmSectorMapScreen({super.key, this.existingFarm});
 
   @override
@@ -21,7 +23,7 @@ class _FarmSectorMapScreenState extends ConsumerState<FarmSectorMapScreen> {
   final List<LatLng> _farmBoundaryPoints = [];
   final List<Sector> _sectors = [];
   final List<LatLng> _currentSectorPoints = [];
-  
+
   bool _isDrawingFarmBoundary = false;
   bool _isDrawingSector = false;
   LatLng _centerPosition = LatLng(20.5937, 78.9629);
@@ -141,71 +143,168 @@ class _FarmSectorMapScreenState extends ConsumerState<FarmSectorMapScreen> {
   void _showSectorDetailsDialog() {
     final TextEditingController nameController = TextEditingController();
     final TextEditingController cropController = TextEditingController();
+    final TextEditingController ipController = TextEditingController();
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Sector Details'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameController,
-              decoration: const InputDecoration(
-                labelText: 'Sector Name',
-                hintText: 'e.g., Sector 1, North Field',
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Sector Details'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: nameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Sector Name',
+                      hintText: 'e.g., Sector 1, North Field',
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: cropController,
+                    decoration: const InputDecoration(
+                      labelText: 'Crop Type',
+                      hintText: 'e.g., Sugarcane, Cotton, Wheat',
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: ipController,
+                    decoration: InputDecoration(
+                      labelText: 'Soil Sensor IP (optional)',
+                      hintText: '192.168.x.x',
+                      prefixIcon: const Icon(Icons.sensors, size: 20),
+                      helperText: 'ESP8266 sensor IP address',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    keyboardType: TextInputType.number,
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: cropController,
-              decoration: const InputDecoration(
-                labelText: 'Crop Type',
-                hintText: 'e.g., Sugarcane, Cotton, Wheat',
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  setState(() {
+                    _currentSectorPoints.clear();
+                    _isDrawingSector = false;
+                  });
+                },
+                child: const Text('Cancel'),
               ),
+              ElevatedButton(
+                onPressed: () {
+                  if (nameController.text.isEmpty ||
+                      cropController.text.isEmpty) {
+                    return;
+                  }
+                  final area = _calculatePolygonArea(_currentSectorPoints);
+                  final ip = ipController.text.trim();
+                  final sector = Sector(
+                    id: DateTime.now().millisecondsSinceEpoch.toString(),
+                    farmId: 'farm_1', // TODO: Use actual farm ID
+                    name: nameController.text,
+                    boundary: List.from(_currentSectorPoints),
+                    area: area,
+                    cropType: cropController.text,
+                    sensorIP: ip.isEmpty ? null : ip,
+                  );
+
+                  setState(() {
+                    _sectors.add(sector);
+                    _currentSectorPoints.clear();
+                    _isDrawingSector = false;
+                  });
+
+                  Navigator.pop(context);
+                  _showMessage('Sector "${sector.name}" created!');
+                },
+                child: const Text('Create'),
+              ),
+            ],
+          ),
+    );
+  }
+
+  void _editSectorSensorIP(int index) {
+    final sector = _sectors[index];
+    final ipController = TextEditingController(text: sector.sensorIP ?? '');
+
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: Row(
+              children: [
+                Icon(Icons.sensors, color: AppTheme.primaryGreen),
+                const SizedBox(width: 8),
+                const Text('Soil Sensor IP'),
+              ],
             ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              setState(() {
-                _currentSectorPoints.clear();
-                _isDrawingSector = false;
-              });
-            },
-            child: const Text('Cancel'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Sector: ${sector.name}',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: ipController,
+                  autofocus: true,
+                  decoration: InputDecoration(
+                    labelText: 'ESP8266 IP Address',
+                    hintText: '192.168.x.x',
+                    prefixIcon: const Icon(Icons.wifi),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  keyboardType: TextInputType.number,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Leave empty to remove sensor link.',
+                  style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  final ip = ipController.text.trim();
+                  setState(() {
+                    _sectors[index] = sector.copyWith(
+                      sensorIP: ip.isEmpty ? null : ip,
+                    );
+                  });
+                  Navigator.pop(context);
+                  _showMessage(
+                    ip.isEmpty
+                        ? 'Sensor IP removed from "${sector.name}"'
+                        : 'Sensor IP set for "${sector.name}"',
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primaryGreen,
+                ),
+                child: const Text(
+                  'Save',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ],
           ),
-          ElevatedButton(
-            onPressed: () {
-              if (nameController.text.isEmpty ||
-                  cropController.text.isEmpty) {
-                return;
-              }
-              final area = _calculatePolygonArea(_currentSectorPoints);
-              final sector = Sector(
-                id: DateTime.now().millisecondsSinceEpoch.toString(),
-                farmId: 'farm_1', // TODO: Use actual farm ID
-                name: nameController.text,
-                boundary: List.from(_currentSectorPoints),
-                area: area,
-                cropType: cropController.text,
-              );
-
-              setState(() {
-                _sectors.add(sector);
-                _currentSectorPoints.clear();
-                _isDrawingSector = false;
-              });
-
-              Navigator.pop(context);
-              _showMessage('Sector "${sector.name}" created!');
-            },
-            child: const Text('Create'),
-          ),
-        ],
-      ),
     );
   }
 
@@ -248,6 +347,7 @@ class _FarmSectorMapScreenState extends ConsumerState<FarmSectorMapScreen> {
       SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
     );
   }
+
   double _calculatePolygonArea(List<LatLng> points) {
     if (points.length < 3) return 0;
 
@@ -263,6 +363,7 @@ class _FarmSectorMapScreenState extends ConsumerState<FarmSectorMapScreen> {
 
     return areaInAcres;
   }
+
   bool _isPointInPolygon(LatLng point, List<LatLng> polygon) {
     if (polygon.length < 3) return false;
 
@@ -310,19 +411,39 @@ class _FarmSectorMapScreenState extends ConsumerState<FarmSectorMapScreen> {
         _showMessage('Farm name is required');
         return;
       }
+
+      // Preserve the existing ID when editing so we overwrite rather than
+      // create a duplicate entry in Hive.
+      final farmId =
+          widget.existingFarm?.id ??
+          DateTime.now().millisecondsSinceEpoch.toString();
+
+      // Delete old record first so stale sectors are cleaned up.
+      if (widget.existingFarm != null) {
+        await FarmDatabaseService.deleteFarm(widget.existingFarm!.id);
+      }
+
       final totalArea = _calculatePolygonArea(_farmBoundaryPoints);
+
+      // Patch every sector's farmId to match the real farm ID so that
+      // getSectorsByFarmId() can find them later.
+      final updatedSectors =
+          _sectors.map((s) => s.copyWith(farmId: farmId)).toList();
+
       final farm = Farm(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        id: farmId,
         name: farmName,
-        farmerId: 'default_user', // TODO: Get from auth service
+        farmerId: 'default_user',
         boundary: _farmBoundaryPoints,
         area: totalArea,
-        sectors: _sectors,
+        sectors: updatedSectors,
         createdAt: DateTime.now(),
       );
       await FarmDatabaseService.saveFarm(farm);
-      
-      _showMessage('Farm "$farmName" saved successfully with ${_sectors.length} sectors!');
+
+      _showMessage(
+        'Farm "$farmName" saved successfully with ${_sectors.length} sectors!',
+      );
       await Future.delayed(const Duration(seconds: 1));
       if (mounted) {
         Navigator.pop(context);
@@ -335,33 +456,34 @@ class _FarmSectorMapScreenState extends ConsumerState<FarmSectorMapScreen> {
 
   Future<String?> _showFarmNameDialog() async {
     final TextEditingController nameController = TextEditingController();
-    
+
     return showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Save Farm'),
-        content: TextField(
-          controller: nameController,
-          decoration: const InputDecoration(
-            labelText: 'Farm Name',
-            hintText: 'Enter farm name',
-            border: OutlineInputBorder(),
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Save Farm'),
+            content: TextField(
+              controller: nameController,
+              decoration: const InputDecoration(
+                labelText: 'Farm Name',
+                hintText: 'Enter farm name',
+                border: OutlineInputBorder(),
+              ),
+              autofocus: true,
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context, nameController.text);
+                },
+                child: const Text('Save'),
+              ),
+            ],
           ),
-          autofocus: true,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context, nameController.text);
-            },
-            child: const Text('Save'),
-          ),
-        ],
-      ),
     );
   }
 
@@ -412,23 +534,24 @@ class _FarmSectorMapScreenState extends ConsumerState<FarmSectorMapScreen> {
                 ),
               if (_sectors.isNotEmpty)
                 PolygonLayer(
-                  polygons: _sectors.asMap().entries.map((entry) {
-                    final index = entry.key;
-                    final sector = entry.value;
-                    return Polygon(
-                      points: sector.boundary,
-                      color: _getSectorColor(index),
-                      borderColor: _getSectorColor(index).withOpacity(1),
-                      borderStrokeWidth: 2,
-                      isFilled: true,
-                      label: sector.name,
-                      labelStyle: const TextStyle(
-                        color: Colors.black,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                      ),
-                    );
-                  }).toList(),
+                  polygons:
+                      _sectors.asMap().entries.map((entry) {
+                        final index = entry.key;
+                        final sector = entry.value;
+                        return Polygon(
+                          points: sector.boundary,
+                          color: _getSectorColor(index),
+                          borderColor: _getSectorColor(index).withOpacity(1),
+                          borderStrokeWidth: 2,
+                          isFilled: true,
+                          label: sector.name,
+                          labelStyle: const TextStyle(
+                            color: Colors.black,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        );
+                      }).toList(),
                 ),
               if (_currentSectorPoints.isNotEmpty)
                 PolygonLayer(
@@ -508,9 +631,10 @@ class _FarmSectorMapScreenState extends ConsumerState<FarmSectorMapScreen> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: _isDrawingFarmBoundary
-                          ? AppTheme.primaryGreen.withOpacity(0.1)
-                          : _isDrawingSector
+                      color:
+                          _isDrawingFarmBoundary
+                              ? AppTheme.primaryGreen.withOpacity(0.1)
+                              : _isDrawingSector
                               ? Colors.blue.withOpacity(0.1)
                               : Colors.grey.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(8),
@@ -521,11 +645,12 @@ class _FarmSectorMapScreenState extends ConsumerState<FarmSectorMapScreen> {
                           _isDrawingFarmBoundary
                               ? Icons.edit_location
                               : _isDrawingSector
-                                  ? Icons.grid_on
-                                  : Icons.info_outline,
-                          color: _isDrawingFarmBoundary
-                              ? AppTheme.primaryGreen
-                              : _isDrawingSector
+                              ? Icons.grid_on
+                              : Icons.info_outline,
+                          color:
+                              _isDrawingFarmBoundary
+                                  ? AppTheme.primaryGreen
+                                  : _isDrawingSector
                                   ? Colors.blue
                                   : Colors.grey,
                         ),
@@ -535,10 +660,10 @@ class _FarmSectorMapScreenState extends ConsumerState<FarmSectorMapScreen> {
                             _isDrawingFarmBoundary
                                 ? 'Tap on map to add boundary points (${_farmBoundaryPoints.length} points)'
                                 : _isDrawingSector
-                                    ? 'Tap inside farm to add sector points (${_currentSectorPoints.length} points)'
-                                    : _farmBoundaryPoints.isEmpty
-                                        ? 'Start by drawing farm boundary'
-                                        : '${_sectors.length} sector(s) created',
+                                ? 'Tap inside farm to add sector points (${_currentSectorPoints.length} points)'
+                                : _farmBoundaryPoints.isEmpty
+                                ? 'Start by drawing farm boundary'
+                                : '${_sectors.length} sector(s) created',
                             style: TextStyle(
                               fontWeight: FontWeight.w500,
                               color: Colors.black87,
@@ -553,42 +678,49 @@ class _FarmSectorMapScreenState extends ConsumerState<FarmSectorMapScreen> {
                     children: [
                       Expanded(
                         child: ElevatedButton.icon(
-                          onPressed: _farmBoundaryPoints.isEmpty &&
-                                  !_isDrawingFarmBoundary
-                              ? _startDrawingFarmBoundary
-                              : _isDrawingFarmBoundary
+                          onPressed:
+                              _farmBoundaryPoints.isEmpty &&
+                                      !_isDrawingFarmBoundary
+                                  ? _startDrawingFarmBoundary
+                                  : _isDrawingFarmBoundary
                                   ? _finishDrawingFarmBoundary
                                   : null,
-                          icon: Icon(_isDrawingFarmBoundary
-                              ? Icons.check
-                              : Icons.border_outer),
-                          label: Text(_farmBoundaryPoints.isEmpty
-                              ? 'Draw Farm'
-                              : _isDrawingFarmBoundary
-                                  ? 'Finish'
-                                  : 'Farm OK'),
+                          icon: Icon(
+                            _isDrawingFarmBoundary
+                                ? Icons.check
+                                : Icons.border_outer,
+                          ),
+                          label: Text(
+                            _farmBoundaryPoints.isEmpty
+                                ? 'Draw Farm'
+                                : _isDrawingFarmBoundary
+                                ? 'Finish'
+                                : 'Farm OK',
+                          ),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: _isDrawingFarmBoundary
-                                ? AppTheme.successGreen
-                                : AppTheme.primaryGreen,
+                            backgroundColor:
+                                _isDrawingFarmBoundary
+                                    ? AppTheme.successGreen
+                                    : AppTheme.primaryGreen,
                           ),
                         ),
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: ElevatedButton.icon(
-                          onPressed: !_isDrawingSector &&
-                                  _farmBoundaryPoints.isNotEmpty
-                              ? _startDrawingSector
-                              : _isDrawingSector
+                          onPressed:
+                              !_isDrawingSector &&
+                                      _farmBoundaryPoints.isNotEmpty
+                                  ? _startDrawingSector
+                                  : _isDrawingSector
                                   ? _finishDrawingSector
                                   : null,
-                          icon: Icon(_isDrawingSector
-                              ? Icons.check
-                              : Icons.grid_on),
-                          label: Text(_isDrawingSector
-                              ? 'Finish Sector'
-                              : 'Add Sector'),
+                          icon: Icon(
+                            _isDrawingSector ? Icons.check : Icons.grid_on,
+                          ),
+                          label: Text(
+                            _isDrawingSector ? 'Finish Sector' : 'Add Sector',
+                          ),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.blue,
                           ),
@@ -609,12 +741,7 @@ class _FarmSectorMapScreenState extends ConsumerState<FarmSectorMapScreen> {
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black26,
-                      blurRadius: 8,
-                    ),
-                  ],
+                  boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 8)],
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -667,9 +794,35 @@ class _FarmSectorMapScreenState extends ConsumerState<FarmSectorMapScreen> {
                               '${sector.cropType}\n${sector.area.toStringAsFixed(2)} acres',
                               style: const TextStyle(fontSize: 10),
                             ),
-                            trailing: IconButton(
-                              icon: const Icon(Icons.delete, size: 18),
-                              onPressed: () => _deleteSector(sector.id),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Tooltip(
+                                  message:
+                                      sector.sensorIP != null
+                                          ? 'Sensor: ${sector.sensorIP}'
+                                          : 'Set sensor IP',
+                                  child: IconButton(
+                                    icon: Icon(
+                                      Icons.sensors,
+                                      size: 18,
+                                      color:
+                                          sector.sensorIP != null
+                                              ? AppTheme.primaryGreen
+                                              : Colors.grey,
+                                    ),
+                                    onPressed: () => _editSectorSensorIP(index),
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(),
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.delete, size: 18),
+                                  onPressed: () => _deleteSector(sector.id),
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
+                                ),
+                              ],
                             ),
                           );
                         },
@@ -681,14 +834,15 @@ class _FarmSectorMapScreenState extends ConsumerState<FarmSectorMapScreen> {
             ),
         ],
       ),
-      floatingActionButton: _sectors.isNotEmpty
-          ? FloatingActionButton.extended(
-              onPressed: () => _saveFarm(),
-              icon: const Icon(Icons.save),
-              label: const Text('Save Farm'),
-              backgroundColor: AppTheme.successGreen,
-            )
-          : null,
+      floatingActionButton:
+          _sectors.isNotEmpty
+              ? FloatingActionButton.extended(
+                onPressed: () => _saveFarm(),
+                icon: const Icon(Icons.save),
+                label: const Text('Save Farm'),
+                backgroundColor: AppTheme.successGreen,
+              )
+              : null,
     );
   }
 }

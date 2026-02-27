@@ -6,6 +6,7 @@ import 'package:krishimitra/services/farm_database_service.dart';
 import 'package:krishimitra/utils/app_theme.dart';
 import 'package:krishimitra/utils/app_strings.dart';
 import 'package:krishimitra/presentation/screens/farm_sector_map_screen.dart';
+
 class FarmListScreen extends ConsumerStatefulWidget {
   const FarmListScreen({super.key});
 
@@ -35,9 +36,9 @@ class _FarmListScreenState extends ConsumerState<FarmListScreen> {
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading farms: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error loading farms: $e')));
       }
     }
   }
@@ -45,25 +46,26 @@ class _FarmListScreenState extends ConsumerState<FarmListScreen> {
   Future<void> _deleteFarm(Farm farm) async {
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(AppStrings.isHindi ? 'खेत हटाएं' : 'Delete Farm'),
-        content: Text(
-          AppStrings.isHindi
-              ? 'क्या आप वाकई इस खेत को हटाना चाहते हैं? यह पूर्ववत नहीं किया जा सकता।'
-              : 'Are you sure you want to delete this farm? This cannot be undone.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(AppStrings.isHindi ? 'रद्द करें' : 'Cancel'),
+      builder:
+          (context) => AlertDialog(
+            title: Text(AppStrings.isHindi ? 'खेत हटाएं' : 'Delete Farm'),
+            content: Text(
+              AppStrings.isHindi
+                  ? 'क्या आप वाकई इस खेत को हटाना चाहते हैं? यह पूर्ववत नहीं किया जा सकता।'
+                  : 'Are you sure you want to delete this farm? This cannot be undone.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: Text(AppStrings.isHindi ? 'रद्द करें' : 'Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                child: Text(AppStrings.isHindi ? 'हटाएं' : 'Delete'),
+              ),
+            ],
           ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: Text(AppStrings.isHindi ? 'हटाएं' : 'Delete'),
-          ),
-        ],
-      ),
     );
 
     if (confirm == true) {
@@ -111,7 +113,8 @@ class _FarmListScreenState extends ConsumerState<FarmListScreen> {
             padding: const EdgeInsets.all(8.0),
             child: TextField(
               decoration: InputDecoration(
-                hintText: AppStrings.isHindi ? 'खेत खोजें...' : 'Search farms...',
+                hintText:
+                    AppStrings.isHindi ? 'खेत खोजें...' : 'Search farms...',
                 prefixIcon: const Icon(Icons.search),
                 filled: true,
                 fillColor: Colors.white,
@@ -127,9 +130,10 @@ class _FarmListScreenState extends ConsumerState<FarmListScreen> {
           ),
         ),
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _filteredFarms.isEmpty
+      body:
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : _filteredFarms.isEmpty
               ? _buildEmptyState()
               : _buildFarmGrid(),
       floatingActionButton: FloatingActionButton.extended(
@@ -153,11 +157,7 @@ class _FarmListScreenState extends ConsumerState<FarmListScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.agriculture_outlined,
-            size: 100,
-            color: Colors.grey[400],
-          ),
+          Icon(Icons.agriculture_outlined, size: 100, color: Colors.grey[400]),
           const SizedBox(height: 24),
           Text(
             AppStrings.isHindi ? 'अभी तक कोई खेत नहीं' : 'No Farms Yet',
@@ -221,35 +221,51 @@ class _FarmListScreenState extends ConsumerState<FarmListScreen> {
               height: 80,
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [AppTheme.primaryGreen, AppTheme.primaryGreen.withOpacity(0.7)],
+                  colors: [
+                    AppTheme.primaryGreen,
+                    AppTheme.primaryGreen.withOpacity(0.7),
+                  ],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(16),
+                ),
               ),
               child: Stack(
                 children: [
                   const Center(
-                    child: Icon(Icons.landscape, size: 50, color: Colors.white70),
+                    child: Icon(
+                      Icons.landscape,
+                      size: 50,
+                      color: Colors.white70,
+                    ),
                   ),
                   Positioned(
                     top: 8,
                     right: 8,
                     child: PopupMenuButton(
                       icon: const Icon(Icons.more_vert, color: Colors.white),
-                      itemBuilder: (context) => [
-                        PopupMenuItem(
-                          child: ListTile(
-                            leading: const Icon(Icons.delete, color: Colors.red),
-                            title: Text(AppStrings.isHindi ? 'हटाएं' : 'Delete'),
-                            contentPadding: EdgeInsets.zero,
-                          ),
-                          onTap: () => Future.delayed(
-                            Duration.zero,
-                            () => _deleteFarm(farm),
-                          ),
-                        ),
-                      ],
+                      itemBuilder:
+                          (context) => [
+                            PopupMenuItem(
+                              child: ListTile(
+                                leading: const Icon(
+                                  Icons.delete,
+                                  color: Colors.red,
+                                ),
+                                title: Text(
+                                  AppStrings.isHindi ? 'हटाएं' : 'Delete',
+                                ),
+                                contentPadding: EdgeInsets.zero,
+                              ),
+                              onTap:
+                                  () => Future.delayed(
+                                    Duration.zero,
+                                    () => _deleteFarm(farm),
+                                  ),
+                            ),
+                          ],
                     ),
                   ),
                 ],
@@ -273,11 +289,18 @@ class _FarmListScreenState extends ConsumerState<FarmListScreen> {
                     const SizedBox(height: 8),
                     Row(
                       children: [
-                        Icon(Icons.straighten, size: 16, color: Colors.grey[600]),
+                        Icon(
+                          Icons.straighten,
+                          size: 16,
+                          color: Colors.grey[600],
+                        ),
                         const SizedBox(width: 4),
                         Text(
                           '${farm.area.toStringAsFixed(2)} ${AppStrings.isHindi ? 'एकड़' : 'acres'}',
-                          style: TextStyle(fontSize: 13, color: Colors.grey[700]),
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey[700],
+                          ),
                         ),
                       ],
                     ),
@@ -288,11 +311,39 @@ class _FarmListScreenState extends ConsumerState<FarmListScreen> {
                         const SizedBox(width: 4),
                         Text(
                           '${farm.sectors.length} ${AppStrings.isHindi ? 'सेक्टर' : 'sectors'}',
-                          style: TextStyle(fontSize: 13, color: Colors.grey[700]),
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey[700],
+                          ),
                         ),
                       ],
                     ),
                     const Spacer(),
+                    // ── Drone Survey shortcut ──────────────────────────────
+                    if (farm.boundary.isNotEmpty)
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF00695C),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 6),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            textStyle: const TextStyle(fontSize: 11),
+                          ),
+                          icon: const Icon(Icons.flight, size: 13),
+                          label: const Text('Drone Survey'),
+                          onPressed:
+                              () => Navigator.pushNamed(
+                                context,
+                                '/drone-simulation',
+                                arguments: farm,
+                              ),
+                        ),
+                      ),
+                    const SizedBox(height: 4),
                     Text(
                       DateFormat('dd MMM yyyy').format(farm.createdAt),
                       style: TextStyle(fontSize: 11, color: Colors.grey[500]),

@@ -59,7 +59,10 @@ class FarmDatabaseService {
     final farms = <Farm>[];
     for (final farmMap in _farmBox!.values) {
       final farm = _mapToFarm(farmMap);
-      if (farm != null) farms.add(farm);
+      if (farm == null) continue;
+      // Load sectors for this farm so farm.sectors is never empty.
+      final sectors = await getSectorsByFarmId(farm.id);
+      farms.add(farm.copyWith(sectors: sectors));
     }
 
     return farms;
@@ -68,7 +71,10 @@ class FarmDatabaseService {
   static Future<Farm?> getFarm(String farmId) async {
     final farmMap = _farmBox?.get(farmId);
     if (farmMap == null) return null;
-    return _mapToFarm(farmMap);
+    final farm = _mapToFarm(farmMap);
+    if (farm == null) return null;
+    final sectors = await getSectorsByFarmId(farmId);
+    return farm.copyWith(sectors: sectors);
   }
 
   static Future<List<Sector>> getSectorsByFarmId(String farmId) async {
