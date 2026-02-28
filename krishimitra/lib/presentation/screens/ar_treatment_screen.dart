@@ -50,8 +50,14 @@ class _ARTreatmentScreenState extends State<ARTreatmentScreen>
   // Animation controllers
   late AnimationController _pulseController;
   late AnimationController _arrowController;
+  late AnimationController _floatController;
+  late AnimationController _rotateController;
+  late AnimationController _fadeController;
   late Animation<double> _pulseAnimation;
   late Animation<double> _arrowAnimation;
+  late Animation<double> _floatAnimation;
+  late Animation<double> _rotateAnimation;
+  late Animation<double> _fadeAnimation;
 
   // Timer for auto-progression
   Timer? _autoProgressTimer;
@@ -77,15 +83,42 @@ class _ARTreatmentScreenState extends State<ARTreatmentScreen>
 
     _arrowController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1000),
+      duration: const Duration(milliseconds: 1200),
     )..repeat();
+
+    _floatController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2000),
+    )..repeat(reverse: true);
+
+    _rotateController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 3000),
+    )..repeat();
+
+    _fadeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    )..repeat(reverse: true);
 
     _pulseAnimation = Tween<double>(begin: 0.8, end: 1.2).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
 
-    _arrowAnimation = Tween<double>(begin: 0, end: 20).animate(
+    _arrowAnimation = Tween<double>(begin: 0, end: 1).animate(
       CurvedAnimation(parent: _arrowController, curve: Curves.easeInOut),
+    );
+
+    _floatAnimation = Tween<double>(begin: -15, end: 15).animate(
+      CurvedAnimation(parent: _floatController, curve: Curves.easeInOut),
+    );
+
+    _rotateAnimation = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(parent: _rotateController, curve: Curves.linear),
+    );
+
+    _fadeAnimation = Tween<double>(begin: 0.3, end: 1.0).animate(
+      CurvedAnimation(parent: _fadeController, curve: Curves.easeInOut),
     );
   }
 
@@ -220,6 +253,9 @@ class _ARTreatmentScreenState extends State<ARTreatmentScreen>
     _cameraController?.dispose();
     _pulseController.dispose();
     _arrowController.dispose();
+    _floatController.dispose();
+    _rotateController.dispose();
+    _fadeController.dispose();
     _autoProgressTimer?.cancel();
     MarathiTtsService.stop();
     MarathiTtsService.onSpeakingChanged = null;
@@ -303,21 +339,758 @@ class _ARTreatmentScreenState extends State<ARTreatmentScreen>
 
   Widget _buildAROverlay() {
     final step = _treatmentPlan!.steps[_currentStepIndex];
-    // config is accessed inside the painter
 
     return AnimatedBuilder(
-      animation: Listenable.merge([_pulseController, _arrowController]),
+      animation: Listenable.merge([
+        _pulseController,
+        _arrowController,
+        _floatController,
+        _rotateController,
+        _fadeController,
+      ]),
       builder: (context, child) {
-        return CustomPaint(
-          size: Size.infinite,
-          painter: AROverlayPainter(
-            step: step,
-            pulseValue: _pulseAnimation.value,
-            arrowOffset: _arrowAnimation.value,
-            showOverlay: _showOverlay,
-          ),
+        return Stack(
+          children: [
+            // Corner scanning brackets (always shown)
+            _buildScanBrackets(),
+            // Step-specific main animation
+            _buildStepAnimation(step),
+            // Animated step icon badge (top center)
+            _buildAnimatedStepBadge(step),
+          ],
         );
       },
+    );
+  }
+
+  Widget _buildScanBrackets() {
+    final color = Colors.greenAccent.withOpacity(0.6 * _fadeAnimation.value);
+    const bracketSize = 50.0;
+    const thickness = 3.0;
+
+    return Stack(
+      children: [
+        // Top-left
+        Positioned(
+          top: 80,
+          left: 20,
+          child: _buildBracketCorner(color, bracketSize, thickness, topLeft: true),
+        ),
+        // Top-right
+        Positioned(
+          top: 80,
+          right: 20,
+          child: _buildBracketCorner(color, bracketSize, thickness, topRight: true),
+        ),
+        // Bottom-left
+        Positioned(
+          bottom: 280,
+          left: 20,
+          child: _buildBracketCorner(color, bracketSize, thickness, bottomLeft: true),
+        ),
+        // Bottom-right
+        Positioned(
+          bottom: 280,
+          right: 20,
+          child: _buildBracketCorner(color, bracketSize, thickness, bottomRight: true),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBracketCorner(Color color, double size, double thickness,
+      {bool topLeft = false, bool topRight = false, bool bottomLeft = false, bool bottomRight = false}) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: CustomPaint(
+        painter: _BracketPainter(
+          color: color,
+          thickness: thickness,
+          topLeft: topLeft,
+          topRight: topRight,
+          bottomLeft: bottomLeft,
+          bottomRight: bottomRight,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAnimatedStepBadge(ARTreatmentStep step) {
+    final stepColor = ARTreatmentService.getStepColor(step.type);
+    final stepIcon = ARTreatmentService.getStepIcon(step.type);
+    final emoji = _getStepEmoji(step.type);
+
+    return Positioned(
+      top: 100 + _floatAnimation.value,
+      left: 0,
+      right: 0,
+      child: Center(
+        child: Transform.scale(
+          scale: _pulseAnimation.value,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            decoration: BoxDecoration(
+              color: stepColor.withOpacity(0.85),
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: stepColor.withOpacity(0.5),
+                  blurRadius: 20,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(emoji, style: const TextStyle(fontSize: 22)),
+                const SizedBox(width: 8),
+                Icon(stepIcon, color: Colors.white, size: 20),
+                const SizedBox(width: 6),
+                Text(
+                  step.getTitle(AppStrings.languageCode),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    shadows: [Shadow(color: Colors.black38, blurRadius: 4)],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _getStepEmoji(TreatmentStepType type) {
+    switch (type) {
+      case TreatmentStepType.identifyArea:
+        return '🔍';
+      case TreatmentStepType.prepareTools:
+        return '🔧';
+      case TreatmentStepType.prepareSolution:
+        return '🧪';
+      case TreatmentStepType.application:
+        return '💨';
+      case TreatmentStepType.soilTreatment:
+        return '🌱';
+      case TreatmentStepType.pruning:
+        return '✂️';
+      case TreatmentStepType.watering:
+        return '💧';
+      case TreatmentStepType.safety:
+        return '⚠️';
+      case TreatmentStepType.monitoring:
+        return '👁️';
+      case TreatmentStepType.prevention:
+        return '🛡️';
+    }
+  }
+
+  Widget _buildStepAnimation(ARTreatmentStep step) {
+    switch (step.type) {
+      case TreatmentStepType.identifyArea:
+        return _buildIdentifyAnimation();
+      case TreatmentStepType.prepareTools:
+        return _buildToolsAnimation();
+      case TreatmentStepType.prepareSolution:
+        return _buildMixAnimation();
+      case TreatmentStepType.application:
+        return _buildSprayAnimation();
+      case TreatmentStepType.soilTreatment:
+        return _buildSoilAnimation();
+      case TreatmentStepType.pruning:
+        return _buildPruneAnimation();
+      case TreatmentStepType.watering:
+        return _buildWaterAnimation();
+      case TreatmentStepType.safety:
+        return _buildSafetyAnimation();
+      case TreatmentStepType.monitoring:
+        return _buildMonitorAnimation();
+      case TreatmentStepType.prevention:
+        return _buildShieldAnimation();
+    }
+  }
+
+  // ── IDENTIFY AREA: Pulsing target crosshair ──
+  Widget _buildIdentifyAnimation() {
+    return Center(
+      child: Transform.scale(
+        scale: _pulseAnimation.value,
+        child: SizedBox(
+          width: 200,
+          height: 200,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // Outer ring
+              Container(
+                width: 180,
+                height: 180,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.redAccent.withOpacity(0.6),
+                    width: 3,
+                  ),
+                ),
+              ),
+              // Inner ring
+              Container(
+                width: 120,
+                height: 120,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.redAccent.withOpacity(0.4),
+                    width: 2,
+                  ),
+                ),
+              ),
+              // Crosshair horizontal
+              Container(
+                width: 180,
+                height: 2,
+                color: Colors.redAccent.withOpacity(0.4 * _fadeAnimation.value),
+              ),
+              // Crosshair vertical
+              Container(
+                width: 2,
+                height: 180,
+                color: Colors.redAccent.withOpacity(0.4 * _fadeAnimation.value),
+              ),
+              // Center dot
+              Container(
+                width: 14,
+                height: 14,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.redAccent.withOpacity(0.8),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.red.withOpacity(0.5),
+                      blurRadius: 12,
+                      spreadRadius: 3,
+                    ),
+                  ],
+                ),
+              ),
+              // Scanning text
+              Positioned(
+                bottom: 0,
+                child: Text(
+                  '🔍 ${AppStrings.isMarathi ? 'प्रभावित भाग शोधा' : AppStrings.isHindi ? 'प्रभावित क्षेत्र खोजें' : 'Locate infected area'}',
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(_fadeAnimation.value),
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    shadows: const [Shadow(color: Colors.black, blurRadius: 6)],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── TOOLS: Rotating gear + floating tool icons ──
+  Widget _buildToolsAnimation() {
+    return Center(
+      child: SizedBox(
+        width: 250,
+        height: 250,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            // Rotating gear
+            Transform.rotate(
+              angle: _rotateAnimation.value * 3.14159 * 2,
+              child: Text('⚙️', style: TextStyle(fontSize: 70 * _pulseAnimation.value)),
+            ),
+            // Floating tools around
+            ..._buildOrbitingItems(['🔧', '🪣', '🧤', '📏'], 100),
+            Positioned(
+              bottom: 10,
+              child: Text(
+                AppStrings.isMarathi ? 'साधने तयार करा' : AppStrings.isHindi ? 'उपकरण तैयार करें' : 'Prepare tools',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(_fadeAnimation.value),
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  shadows: const [Shadow(color: Colors.black, blurRadius: 6)],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _buildOrbitingItems(List<String> emojis, double radius) {
+    return List.generate(emojis.length, (i) {
+      final angle = (_rotateAnimation.value * 3.14159 * 2) + (i * 3.14159 * 2 / emojis.length);
+      final x = radius * _cos(angle);
+      final y = radius * _sin(angle);
+      return Positioned(
+        left: 125 + x - 18,
+        top: 125 + y - 18,
+        child: Opacity(
+          opacity: _fadeAnimation.value,
+          child: Text(emojis[i], style: const TextStyle(fontSize: 30)),
+        ),
+      );
+    });
+  }
+
+  double _sin(double a) => (a - (a * a * a / 6) + (a * a * a * a * a / 120)).clamp(-1.0, 1.0) * 1.0;
+  double _cos(double a) => _sin(a + 1.5708);
+
+  // ── MIX SOLUTION: Beaker with bubbling animation ──
+  Widget _buildMixAnimation() {
+    return Center(
+      child: SizedBox(
+        width: 200,
+        height: 250,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            // Beaker
+            const Text('🧪', style: TextStyle(fontSize: 80)),
+            // Rising bubbles
+            ...List.generate(5, (i) {
+              final progress = (_arrowAnimation.value + i * 0.2) % 1.0;
+              return Positioned(
+                bottom: 60 + progress * 120,
+                left: 80 + (i % 3 - 1) * 25,
+                child: Opacity(
+                  opacity: (1 - progress).clamp(0.0, 1.0),
+                  child: Transform.scale(
+                    scale: 0.5 + progress * 0.5,
+                    child: Text(
+                      i % 2 == 0 ? '💚' : '🫧',
+                      style: const TextStyle(fontSize: 18),
+                    ),
+                  ),
+                ),
+              );
+            }),
+            Positioned(
+              bottom: 0,
+              child: Text(
+                AppStrings.isMarathi ? 'द्रावण तयार करा' : AppStrings.isHindi ? 'घोल तैयार करें' : 'Mix solution',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(_fadeAnimation.value),
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  shadows: const [Shadow(color: Colors.black, blurRadius: 6)],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── SPRAY APPLICATION: Spray can with mist particles ──
+  Widget _buildSprayAnimation() {
+    return Center(
+      child: SizedBox(
+        width: 250,
+        height: 300,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            // Spray can
+            Positioned(
+              top: 30 + _floatAnimation.value * 0.5,
+              child: Transform.scale(
+                scale: _pulseAnimation.value * 0.9,
+                child: const Text('🧴', style: TextStyle(fontSize: 60)),
+              ),
+            ),
+            // Spray mist particles falling down
+            ...List.generate(12, (i) {
+              final progress = (_arrowAnimation.value + i * 0.1) % 1.0;
+              final xSpread = (i % 5 - 2) * 22.0;
+              return Positioned(
+                top: 100 + progress * 140,
+                left: 110 + xSpread + _floatAnimation.value * 0.3,
+                child: Opacity(
+                  opacity: (1 - progress * 0.8).clamp(0.0, 0.8),
+                  child: Text(
+                    i % 3 == 0 ? '💨' : i % 3 == 1 ? '💦' : '·',
+                    style: TextStyle(
+                      fontSize: i % 3 == 2 ? 24 : 16,
+                      color: Colors.greenAccent.withOpacity(0.7),
+                    ),
+                  ),
+                ),
+              );
+            }),
+            // Target plant area
+            Positioned(
+              bottom: 20,
+              child: Transform.scale(
+                scale: _pulseAnimation.value * 0.85,
+                child: const Text('🌿', style: TextStyle(fontSize: 50)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── SOIL TREATMENT: Digging/soil particles ──
+  Widget _buildSoilAnimation() {
+    return Center(
+      child: SizedBox(
+        width: 220,
+        height: 250,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            // Shovel
+            Positioned(
+              top: 20 + _floatAnimation.value,
+              child: Transform.rotate(
+                angle: _pulseAnimation.value * 0.2 - 0.1,
+                child: const Text('⛏️', style: TextStyle(fontSize: 60)),
+              ),
+            ),
+            // Soil particles
+            ...List.generate(8, (i) {
+              final progress = (_arrowAnimation.value + i * 0.15) % 1.0;
+              final xOff = (i % 4 - 1.5) * 30;
+              return Positioned(
+                bottom: 40 + progress * 80,
+                left: 90 + xOff,
+                child: Opacity(
+                  opacity: (1 - progress).clamp(0.0, 1.0),
+                  child: Text(
+                    i % 2 == 0 ? '🟤' : '🌱',
+                    style: const TextStyle(fontSize: 16),
+                  ),
+                ),
+              );
+            }),
+            Positioned(
+              bottom: 10,
+              child: Text(
+                AppStrings.isMarathi ? 'माती उपचार' : AppStrings.isHindi ? 'मिट्टी का उपचार' : 'Soil treatment',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(_fadeAnimation.value),
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  shadows: const [Shadow(color: Colors.black, blurRadius: 6)],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── PRUNING: Animated scissors cutting ──
+  Widget _buildPruneAnimation() {
+    return Center(
+      child: SizedBox(
+        width: 220,
+        height: 220,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            // Infected branch
+            const Text('🍂', style: TextStyle(fontSize: 50)),
+            // Scissors with cutting motion
+            Positioned(
+              left: 40 + (_arrowAnimation.value * 40),
+              top: 60,
+              child: Transform.rotate(
+                angle: _pulseAnimation.value * 0.3 - 0.15,
+                child: const Text('✂️', style: TextStyle(fontSize: 50)),
+              ),
+            ),
+            // Cut marks
+            ...List.generate(3, (i) {
+              final progress = (_arrowAnimation.value + i * 0.3) % 1.0;
+              return Positioned(
+                right: 30 + progress * 60,
+                bottom: 70 + i * 20,
+                child: Opacity(
+                  opacity: (1 - progress).clamp(0.0, 1.0),
+                  child: const Text('🍃', style: TextStyle(fontSize: 20)),
+                ),
+              );
+            }),
+            Positioned(
+              bottom: 10,
+              child: Text(
+                AppStrings.isMarathi ? 'छाटणी करा' : AppStrings.isHindi ? 'छंटाई करें' : 'Prune infected parts',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(_fadeAnimation.value),
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  shadows: const [Shadow(color: Colors.black, blurRadius: 6)],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── WATERING: Water drops falling animation ──
+  Widget _buildWaterAnimation() {
+    return Center(
+      child: SizedBox(
+        width: 220,
+        height: 280,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            // Watering can
+            Positioned(
+              top: 10 + _floatAnimation.value * 0.5,
+              child: Transform.rotate(
+                angle: -0.3,
+                child: Transform.scale(
+                  scale: _pulseAnimation.value * 0.9,
+                  child: const Text('🚿', style: TextStyle(fontSize: 60)),
+                ),
+              ),
+            ),
+            // Water drops falling
+            ...List.generate(10, (i) {
+              final progress = (_arrowAnimation.value + i * 0.12) % 1.0;
+              final xOff = (i % 5 - 2) * 18.0;
+              return Positioned(
+                top: 80 + progress * 150,
+                left: 95 + xOff,
+                child: Opacity(
+                  opacity: (1 - progress * 0.7).clamp(0.0, 1.0),
+                  child: Text(
+                    i % 2 == 0 ? '💧' : '💦',
+                    style: TextStyle(fontSize: 14 + (progress * 8)),
+                  ),
+                ),
+              );
+            }),
+            // Plant receiving water
+            Positioned(
+              bottom: 10,
+              child: Transform.scale(
+                scale: 0.9 + _pulseAnimation.value * 0.1,
+                child: const Text('🌱', style: TextStyle(fontSize: 45)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── SAFETY: Pulsing warning with shield ──
+  Widget _buildSafetyAnimation() {
+    return Center(
+      child: SizedBox(
+        width: 220,
+        height: 220,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            // Pulsing warning glow
+            Container(
+              width: 160 * _pulseAnimation.value,
+              height: 160 * _pulseAnimation.value,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    Colors.orange.withOpacity(0.3 * _fadeAnimation.value),
+                    Colors.orange.withOpacity(0.0),
+                  ],
+                ),
+              ),
+            ),
+            // Safety icons
+            Transform.scale(
+              scale: _pulseAnimation.value,
+              child: const Text('⚠️', style: TextStyle(fontSize: 70)),
+            ),
+            // Orbiting safety gear
+            ..._buildFloatingItems(['🧤', '😷', '🥽', '👢'], 90),
+            Positioned(
+              bottom: 0,
+              child: Text(
+                AppStrings.isMarathi ? 'सुरक्षा प्रथम!' : AppStrings.isHindi ? 'सुरक्षा पहले!' : 'Safety first!',
+                style: TextStyle(
+                  color: Colors.orangeAccent.withOpacity(_fadeAnimation.value),
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  shadows: const [Shadow(color: Colors.black, blurRadius: 6)],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _buildFloatingItems(List<String> emojis, double radius) {
+    return List.generate(emojis.length, (i) {
+      final offset = _floatAnimation.value * (i.isEven ? 1 : -1);
+      final baseAngle = i * 3.14159 * 2 / emojis.length;
+      final x = radius * _cosApprox(baseAngle);
+      final y = radius * _sinApprox(baseAngle) + offset;
+      return Positioned(
+        left: 110 + x - 15,
+        top: 110 + y - 15 + offset,
+        child: Opacity(
+          opacity: _fadeAnimation.value,
+          child: Text(emojis[i], style: const TextStyle(fontSize: 28)),
+        ),
+      );
+    });
+  }
+
+  double _sinApprox(double x) {
+    // Normalize to [-pi, pi]
+    while (x > 3.14159) x -= 6.28318;
+    while (x < -3.14159) x += 6.28318;
+    // Taylor series approximation
+    final x3 = x * x * x;
+    final x5 = x3 * x * x;
+    return x - x3 / 6 + x5 / 120;
+  }
+
+  double _cosApprox(double x) => _sinApprox(x + 1.5708);
+
+  // ── MONITORING: Eye scanning animation ──
+  Widget _buildMonitorAnimation() {
+    return Center(
+      child: SizedBox(
+        width: 220,
+        height: 220,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            // Scanning beam
+            Positioned(
+              top: 40,
+              left: 30 + _arrowAnimation.value * 160,
+              child: Container(
+                width: 3,
+                height: 140,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.cyanAccent.withOpacity(0),
+                      Colors.cyanAccent.withOpacity(0.7),
+                      Colors.cyanAccent.withOpacity(0),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            // Eye icon
+            Transform.scale(
+              scale: _pulseAnimation.value,
+              child: const Text('👁️', style: TextStyle(fontSize: 60)),
+            ),
+            // Calendar
+            Positioned(
+              bottom: 30,
+              right: 30,
+              child: Opacity(
+                opacity: _fadeAnimation.value,
+                child: const Text('📅', style: TextStyle(fontSize: 35)),
+              ),
+            ),
+            Positioned(
+              bottom: 0,
+              child: Text(
+                AppStrings.isMarathi ? 'निरीक्षण करा' : AppStrings.isHindi ? 'निगरानी करें' : 'Monitor regularly',
+                style: TextStyle(
+                  color: Colors.cyanAccent.withOpacity(_fadeAnimation.value),
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  shadows: const [Shadow(color: Colors.black, blurRadius: 6)],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── PREVENTION: Shield with checkmark ──
+  Widget _buildShieldAnimation() {
+    return Center(
+      child: SizedBox(
+        width: 220,
+        height: 220,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            // Glow
+            Container(
+              width: 150 * _pulseAnimation.value,
+              height: 150 * _pulseAnimation.value,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    Colors.green.withOpacity(0.25 * _fadeAnimation.value),
+                    Colors.green.withOpacity(0.0),
+                  ],
+                ),
+              ),
+            ),
+            Transform.scale(
+              scale: _pulseAnimation.value,
+              child: const Text('🛡️', style: TextStyle(fontSize: 70)),
+            ),
+            // Floating checkmarks
+            ...List.generate(4, (i) {
+              final progress = (_arrowAnimation.value + i * 0.25) % 1.0;
+              return Positioned(
+                bottom: 50 + progress * 100,
+                left: 60 + i * 30.0,
+                child: Opacity(
+                  opacity: (1 - progress).clamp(0.0, 1.0),
+                  child: const Text('✅', style: TextStyle(fontSize: 18)),
+                ),
+              );
+            }),
+            Positioned(
+              bottom: 0,
+              child: Text(
+                AppStrings.isMarathi ? 'प्रतिबंध उपाय' : AppStrings.isHindi ? 'रोकथाम' : 'Prevention',
+                style: TextStyle(
+                  color: Colors.greenAccent.withOpacity(_fadeAnimation.value),
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  shadows: const [Shadow(color: Colors.black, blurRadius: 6)],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -862,257 +1635,56 @@ class _ARTreatmentScreenState extends State<ARTreatmentScreen>
   }
 }
 
-/// Custom painter for AR overlays
-class AROverlayPainter extends CustomPainter {
-  final ARTreatmentStep step;
-  final double pulseValue;
-  final double arrowOffset;
-  final bool showOverlay;
+/// Simple bracket corner painter for AR scanning effect
+class _BracketPainter extends CustomPainter {
+  final Color color;
+  final double thickness;
+  final bool topLeft;
+  final bool topRight;
+  final bool bottomLeft;
+  final bool bottomRight;
 
-  AROverlayPainter({
-    required this.step,
-    required this.pulseValue,
-    required this.arrowOffset,
-    required this.showOverlay,
+  _BracketPainter({
+    required this.color,
+    required this.thickness,
+    this.topLeft = false,
+    this.topRight = false,
+    this.bottomLeft = false,
+    this.bottomRight = false,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (!showOverlay) return;
-
-    final config = step.overlayConfig;
-    final color = config.highlightColor.withOpacity(config.highlightOpacity);
-
-    // Draw different overlays based on step type
-    switch (step.type) {
-      case TreatmentStepType.identifyArea:
-        _drawIdentifyOverlay(canvas, size, color);
-        break;
-      case TreatmentStepType.application:
-        _drawSprayOverlay(canvas, size, config);
-        break;
-      case TreatmentStepType.pruning:
-        _drawPruneOverlay(canvas, size, color);
-        break;
-      case TreatmentStepType.watering:
-        _drawWaterOverlay(canvas, size);
-        break;
-      case TreatmentStepType.safety:
-        _drawSafetyOverlay(canvas, size);
-        break;
-      default:
-        _drawDefaultOverlay(canvas, size, color);
-    }
-
-    // Draw distance indicator if applicable
-    if (config.safeDistance != null) {
-      _drawDistanceIndicator(canvas, size, config.safeDistance!);
-    }
-  }
-
-  void _drawIdentifyOverlay(Canvas canvas, Size size, Color color) {
     final paint = Paint()
       ..color = color
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 3 * pulseValue;
+      ..strokeWidth = thickness
+      ..strokeCap = StrokeCap.round;
 
-    // Draw pulsing circle in center
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = 80 * pulseValue;
+    final w = size.width;
+    final h = size.height;
 
-    canvas.drawCircle(center, radius, paint);
-
-    // Draw corner brackets
-    _drawCornerBrackets(canvas, size, color);
-  }
-
-  void _drawSprayOverlay(Canvas canvas, Size size, AROverlayConfig config) {
-    // Draw spray direction arrows
-    final arrowPaint = Paint()
-      ..color = Colors.green
-      ..style = PaintingStyle.fill;
-
-    final centerX = size.width / 2;
-    final startY = size.height * 0.3;
-
-    // Animated arrow
-    final path = Path();
-    path.moveTo(centerX, startY + arrowOffset);
-    path.lineTo(centerX - 15, startY + 30 + arrowOffset);
-    path.lineTo(centerX, startY + 20 + arrowOffset);
-    path.lineTo(centerX + 15, startY + 30 + arrowOffset);
-    path.close();
-
-    canvas.drawPath(path, arrowPaint);
-
-    // Spray pattern lines
-    final sprayPaint = Paint()
-      ..color = Colors.green.withOpacity(0.3)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
-
-    for (int i = 0; i < 5; i++) {
-      final y = startY + 50 + (i * 40) + arrowOffset;
-      final xOffset = (i % 2 == 0 ? 1 : -1) * 30.0;
-      canvas.drawLine(
-        Offset(centerX - 50 + xOffset, y),
-        Offset(centerX + 50 + xOffset, y),
-        sprayPaint,
-      );
+    if (topLeft) {
+      canvas.drawLine(Offset(0, h * 0.5), const Offset(0, 0), paint);
+      canvas.drawLine(const Offset(0, 0), Offset(w * 0.5, 0), paint);
     }
-  }
-
-  void _drawPruneOverlay(Canvas canvas, Size size, Color color) {
-    final paint = Paint()
-      ..color = Colors.purple.withOpacity(0.5)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2;
-
-    // Draw cutting guide lines
-    final centerX = size.width / 2;
-    final centerY = size.height / 2;
-
-    // Scissors icon representation
-    canvas.drawLine(
-      Offset(centerX - 40, centerY - 20),
-      Offset(centerX + 40, centerY + 20),
-      paint,
-    );
-    canvas.drawLine(
-      Offset(centerX - 40, centerY + 20),
-      Offset(centerX + 40, centerY - 20),
-      paint,
-    );
-  }
-
-  void _drawWaterOverlay(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.cyan.withOpacity(0.4)
-      ..style = PaintingStyle.fill;
-
-    // Draw water droplet shapes
-    final centerX = size.width / 2;
-    final startY = size.height * 0.4;
-
-    for (int i = 0; i < 3; i++) {
-      final x = centerX + (i - 1) * 40;
-      final y = startY + (arrowOffset * (i + 1) / 3);
-
-      final dropPath = Path();
-      dropPath.moveTo(x, y);
-      dropPath.quadraticBezierTo(x - 10, y + 15, x, y + 25);
-      dropPath.quadraticBezierTo(x + 10, y + 15, x, y);
-      dropPath.close();
-
-      canvas.drawPath(dropPath, paint);
+    if (topRight) {
+      canvas.drawLine(Offset(w * 0.5, 0), Offset(w, 0), paint);
+      canvas.drawLine(Offset(w, 0), Offset(w, h * 0.5), paint);
     }
-  }
-
-  void _drawSafetyOverlay(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.orange.withOpacity(0.3)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3;
-
-    // Draw warning border
-    final rect = Rect.fromLTWH(20, 100, size.width - 40, size.height - 200);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(rect, const Radius.circular(20)),
-      paint,
-    );
-  }
-
-  void _drawDefaultOverlay(Canvas canvas, Size size, Color color) {
-    _drawCornerBrackets(canvas, size, color);
-  }
-
-  void _drawCornerBrackets(Canvas canvas, Size size, Color color) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3;
-
-    const bracketSize = 40.0;
-    const margin = 50.0;
-
-    // Top-left
-    canvas.drawLine(
-      Offset(margin, margin + bracketSize),
-      Offset(margin, margin),
-      paint,
-    );
-    canvas.drawLine(
-      Offset(margin, margin),
-      Offset(margin + bracketSize, margin),
-      paint,
-    );
-
-    // Top-right
-    canvas.drawLine(
-      Offset(size.width - margin - bracketSize, margin),
-      Offset(size.width - margin, margin),
-      paint,
-    );
-    canvas.drawLine(
-      Offset(size.width - margin, margin),
-      Offset(size.width - margin, margin + bracketSize),
-      paint,
-    );
-
-    // Bottom-left
-    canvas.drawLine(
-      Offset(margin, size.height - margin - bracketSize),
-      Offset(margin, size.height - margin),
-      paint,
-    );
-    canvas.drawLine(
-      Offset(margin, size.height - margin),
-      Offset(margin + bracketSize, size.height - margin),
-      paint,
-    );
-
-    // Bottom-right
-    canvas.drawLine(
-      Offset(size.width - margin - bracketSize, size.height - margin),
-      Offset(size.width - margin, size.height - margin),
-      paint,
-    );
-    canvas.drawLine(
-      Offset(size.width - margin, size.height - margin - bracketSize),
-      Offset(size.width - margin, size.height - margin),
-      paint,
-    );
-  }
-
-  void _drawDistanceIndicator(Canvas canvas, Size size, double distance) {
-    final textPainter = TextPainter(
-      text: TextSpan(
-        text: '${(distance * 100).toInt()}cm',
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 14,
-          fontWeight: FontWeight.bold,
-          shadows: [
-            Shadow(color: Colors.black54, blurRadius: 4),
-          ],
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    );
-
-    textPainter.layout();
-    textPainter.paint(
-      canvas,
-      Offset(size.width - 80, size.height - 150),
-    );
+    if (bottomLeft) {
+      canvas.drawLine(Offset(0, h * 0.5), Offset(0, h), paint);
+      canvas.drawLine(Offset(0, h), Offset(w * 0.5, h), paint);
+    }
+    if (bottomRight) {
+      canvas.drawLine(Offset(w * 0.5, h), Offset(w, h), paint);
+      canvas.drawLine(Offset(w, h * 0.5), Offset(w, h), paint);
+    }
   }
 
   @override
-  bool shouldRepaint(covariant AROverlayPainter oldDelegate) {
-    return oldDelegate.pulseValue != pulseValue ||
-        oldDelegate.arrowOffset != arrowOffset ||
-        oldDelegate.showOverlay != showOverlay ||
-        oldDelegate.step != step;
+  bool shouldRepaint(covariant _BracketPainter oldDelegate) {
+    return oldDelegate.color != color || oldDelegate.thickness != thickness;
   }
 }
 

@@ -8,6 +8,7 @@ import 'package:krishimitra/services/marathi_tts_service.dart';
 import 'package:krishimitra/domain/models/models.dart';
 import 'package:krishimitra/utils/app_strings.dart';
 import 'package:krishimitra/utils/app_theme.dart';
+import 'package:krishimitra/presentation/screens/ar_treatment_screen.dart';
 
 class DiseaseScanScreen extends StatefulWidget {
   const DiseaseScanScreen({super.key});
@@ -272,7 +273,8 @@ class _DiseaseScanScreenState extends State<DiseaseScanScreen> {
       });
 
       // Step 2: Get detailed explanation from Gemini
-      if (result.confidence > 0.5) {
+      // Lower threshold to 0.2 so XAI explanation + AR button appear for most detections
+      if (result.confidence > 0.2) {
         _getGeminiExplanation();
       }
     } catch (e) {
@@ -290,6 +292,16 @@ class _DiseaseScanScreenState extends State<DiseaseScanScreen> {
             AppStrings.isHindi
                 ? 'नेटवर्क त्रुटि: कृपया अपना इंटरनेट कनेक्शन जांचें'
                 : 'Network error: Please check your internet connection';
+      } else if (errorMsg.contains('502') || errorMsg.contains('503') || errorMsg.contains('500')) {
+        errorMsg =
+            AppStrings.isHindi
+                ? 'सर्वर व्यस्त है। कृपया 30 सेकंड बाद पुनः प्रयास करें'
+                : 'Server is busy/waking up. Please retry in 30 seconds';
+      }
+
+      // Truncate very long error messages to prevent UI overflow
+      if (errorMsg.length > 200) {
+        errorMsg = '${errorMsg.substring(0, 200)}...';
       }
 
       setState(() {
@@ -386,11 +398,17 @@ class _DiseaseScanScreenState extends State<DiseaseScanScreen> {
           // Result Card
           if (_result != null && !_isProcessing) _buildResultCard(),
 
-          // Gemini Explanation
+          // Loading explanation indicator (shows while fetching Gemini explanation)
+          if (_loadingExplanation) _buildLoadingExplanation(),
+
+          // Gemini Explanation (text with voice option) - shows after loading
           if (_geminiExplanation != null) _buildGeminiExplanationCard(),
 
-          // Loading explanation indicator
-          if (_loadingExplanation) _buildLoadingExplanation(),
+          // AR Treatment Guide (optional - only for diseased plants, after explanation loaded)
+          if (_geminiExplanation != null && 
+              _result != null && 
+              !_result!.label.toLowerCase().contains('healthy'))
+            _buildARTreatmentButton(),
 
           const SizedBox(height: 100),
         ],
@@ -699,12 +717,6 @@ class _DiseaseScanScreenState extends State<DiseaseScanScreen> {
     if (_result == null) return const SizedBox.shrink();
 
     final isHealthy = _result!.label.toLowerCase().contains('healthy');
-    final confidenceColor =
-        _result!.confidence > 0.7
-            ? AppTheme.successGreen
-            : _result!.confidence > 0.5
-            ? AppTheme.warningOrange
-            : AppTheme.alertRed;
 
     return Container(
       margin: const EdgeInsets.all(16),
@@ -803,39 +815,123 @@ class _DiseaseScanScreenState extends State<DiseaseScanScreen> {
                   _result!.label,
                   Icons.local_hospital,
                 ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Icon(Icons.speed, color: confidenceColor, size: 20),
-                    const SizedBox(width: 8),
-                    Text(
-                      AppStrings.isHindi ? 'विश्वास स्तर:' : 'Confidence:',
-                      style: const TextStyle(fontSize: 14, color: Colors.grey),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: LinearProgressIndicator(
-                        value: _result!.confidence,
-                        backgroundColor: Colors.grey[200],
-                        valueColor: AlwaysStoppedAnimation(confidenceColor),
-                        minHeight: 8,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      '${(_result!.confidence * 100).toStringAsFixed(1)}%',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: confidenceColor,
-                      ),
-                    ),
-                  ],
-                ),
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildARTreatmentButton() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      width: double.infinity,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            const Color(0xFF6C5CE7),
+            const Color(0xFF0984E3),
+          ],
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF6C5CE7).withOpacity(0.3),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: _openARTreatmentGuide,
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.view_in_ar,
+                    color: Colors.white,
+                    size: 28,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        AppStrings.isHindi
+                            ? '🎯 AR उपचार मार्गदर्शिका खोलें'
+                            : AppStrings.isMarathi
+                                ? '🎯 AR उपचार मार्गदर्शक उघडा'
+                                : '🎯 Open AR Treatment Guide',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        AppStrings.isHindi
+                            ? 'कैमरे के साथ चरण-दर-चरण निर्देश देखें'
+                            : AppStrings.isMarathi
+                                ? 'कॅमेऱ्यासह पायरी-पायरीने सूचना पहा'
+                                : 'View step-by-step instructions with camera',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.9),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(
+                  Icons.arrow_forward_ios,
+                  color: Colors.white,
+                  size: 18,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openARTreatmentGuide() {
+    if (_result == null) return;
+
+    // Parse plant name and disease name from label (e.g. "Apple___Cedar_apple_rust")
+    String plantName = _result!.plant ?? 'Plant';
+    String diseaseName = _result!.label;
+    if (_result!.label.contains('___')) {
+      final parts = _result!.label.split('___');
+      plantName = parts[0].replaceAll('_', ' ');
+      diseaseName = parts[1].replaceAll('_', ' ');
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ARTreatmentScreen(
+          plantName: plantName,
+          diseaseName: diseaseName,
+          confidence: _result!.confidence,
+          diseaseImage: _selectedImage,
+        ),
       ),
     );
   }

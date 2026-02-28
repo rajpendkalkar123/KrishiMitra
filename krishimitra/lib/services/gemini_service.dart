@@ -1,11 +1,12 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:krishimitra/services/api_keys.dart';
 
 class GeminiService {
   // Direct Gemini API integration - NO backend needed
-  static const String _apiKey = 'AIzaSyCP9zWDvrUcrOSoFnDslAfUqLlH9e1ZS_I';
+  static String get _apiKey => ApiKeys.currentKey;
   static const String _geminiUrl = 
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
 
   // Track if last response was from AI or fallback
   static bool lastResponseWasFromAI = false;
@@ -297,6 +298,10 @@ Based on these SPECIFIC values, provide CUSTOMIZED recommendations with DETAILED
         final errorBody = response.body;
         print('❌ API Error: $errorBody');
         lastError = 'API returned status ${response.statusCode}';
+        // Rotate key on auth/rate-limit errors for next call
+        if (response.statusCode == 429 || response.statusCode == 403) {
+          ApiKeys.rotateKey();
+        }
         throw Exception('Gemini API Error: ${response.statusCode} - $errorBody');
       }
     } catch (e) {
@@ -542,6 +547,8 @@ Based on these SPECIFIC values, provide CUSTOMIZED recommendations with DETAILED
   }
 
   /// Get AI-powered disease treatment recommendations
+  /// NOTE: Primary disease explanation is handled by DiseaseDetectionService.getGeminiExplanation()
+  /// This is a convenience wrapper that delegates to the same service.
   static Future<String> getDiseaseRecommendation({
     required String plant,
     required String disease,
@@ -549,6 +556,34 @@ Based on these SPECIFIC values, provide CUSTOMIZED recommendations with DETAILED
   }) async {
     try {
       print('🤖 Getting disease recommendation from Gemini...');
+      
+      final prompt = '''You are an expert plant pathologist. Provide a SHORT, SPECIFIC treatment recommendation for:
+Plant: $plant
+Disease: $disease
+
+Give 5-6 bullet points with SPECIFIC fungicide/pesticide names, dosages, and application methods for Indian farmers. Be disease-specific, not generic.''';
+
+      final response = await http.post(
+        Uri.parse('$_geminiUrl?key=$_apiKey'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'contents': [{'parts': [{'text': prompt}]}],
+          'generationConfig': {
+            'temperature': 0.7,
+            'maxOutputTokens': 1024,
+          }
+        }),
+      ).timeout(const Duration(seconds: 30));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['candidates'] != null && data['candidates'].isNotEmpty) {
+          final text = data['candidates'][0]['content']['parts'][0]['text'];
+          if (text != null && text.toString().trim().isNotEmpty) return text;
+        }
+      } else if (response.statusCode == 429 || response.statusCode == 403) {
+        ApiKeys.rotateKey();
+      }
       return _getFallbackDiseaseExplanation(plant, disease);
     } catch (e) {
       print('❌ Error: $e');

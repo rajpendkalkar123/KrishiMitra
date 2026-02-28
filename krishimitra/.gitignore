@@ -16,6 +16,7 @@ assets/models/*.h5
 assets/models/*.keras
 assets/models/*.tflite
 .env
+lib/services/api_keys.dart
 # IntelliJ related
 *.iml
 *.ipr
