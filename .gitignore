@@ -11,6 +11,11 @@ data/*.csv
 !crop-recommender-production/data/crop_and_fertilizer.csv
 !irrigation/TARP.csv
 
+# 3D models / animation assets (too large for git)
+graphic_models/
+*.fbx
+*.glb
+
 # ====================================
 # Environment Variables & Secrets
 # ====================================
