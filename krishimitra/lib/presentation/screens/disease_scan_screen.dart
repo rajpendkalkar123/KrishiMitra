@@ -6,9 +6,9 @@ import 'package:krishimitra/services/disease_detection_service.dart';
 import 'package:krishimitra/services/esp32_camera_service.dart';
 import 'package:krishimitra/services/marathi_tts_service.dart';
 import 'package:krishimitra/domain/models/models.dart';
-import 'package:krishimitra/presentation/screens/esp32_gallery_screen.dart';
 import 'package:krishimitra/utils/app_strings.dart';
 import 'package:krishimitra/utils/app_theme.dart';
+import 'package:krishimitra/presentation/screens/ar_treatment_screen.dart';
 
 class DiseaseScanScreen extends StatefulWidget {
   const DiseaseScanScreen({super.key});
@@ -205,11 +205,11 @@ class _DiseaseScanScreenState extends State<DiseaseScanScreen> {
   }
 
   Future<void> _showCapturedImagesGallery() async {
-    final count = await ESP32CameraService.getImageCount();
+    final images = await ESP32CameraService.getAllImages();
 
     if (!mounted) return;
 
-    if (count == 0) {
+    if (images.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -222,18 +222,14 @@ class _DiseaseScanScreenState extends State<DiseaseScanScreen> {
       return;
     }
 
-    // Open the full gallery screen in pick-mode; it returns the selected image map.
-    final selectedImage = await Navigator.push<Map<String, dynamic>>(
-      context,
-      MaterialPageRoute(
-        builder: (_) => const ESP32GalleryScreen(pickMode: true),
-      ),
+    final selectedImage = await showModalBottomSheet<Map<String, dynamic>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _buildGalleryBottomSheet(images),
     );
 
-    // Refresh count after returning (user may have deleted images).
-    await _loadCapturedImageCount();
-
-    if (selectedImage != null && mounted) {
+    if (selectedImage != null) {
       setState(() {
         _selectedImage = File(selectedImage['filePath'] as String);
         _result = null;
@@ -277,7 +273,8 @@ class _DiseaseScanScreenState extends State<DiseaseScanScreen> {
       });
 
       // Step 2: Get detailed explanation from Gemini
-      if (result.confidence > 0.5) {
+      // Lower threshold to 0.2 so XAI explanation + AR button appear for most detections
+      if (result.confidence > 0.2) {
         _getGeminiExplanation();
       }
     } catch (e) {
@@ -295,6 +292,16 @@ class _DiseaseScanScreenState extends State<DiseaseScanScreen> {
             AppStrings.isHindi
                 ? 'नेटवर्क त्रुटि: कृपया अपना इंटरनेट कनेक्शन जांचें'
                 : 'Network error: Please check your internet connection';
+      } else if (errorMsg.contains('502') || errorMsg.contains('503') || errorMsg.contains('500')) {
+        errorMsg =
+            AppStrings.isHindi
+                ? 'सर्वर व्यस्त है। कृपया 30 सेकंड बाद पुनः प्रयास करें'
+                : 'Server is busy/waking up. Please retry in 30 seconds';
+      }
+
+      // Truncate very long error messages to prevent UI overflow
+      if (errorMsg.length > 200) {
+        errorMsg = '${errorMsg.substring(0, 200)}...';
       }
 
       setState(() {
@@ -391,11 +398,17 @@ class _DiseaseScanScreenState extends State<DiseaseScanScreen> {
           // Result Card
           if (_result != null && !_isProcessing) _buildResultCard(),
 
-          // Gemini Explanation
+          // Loading explanation indicator (shows while fetching Gemini explanation)
+          if (_loadingExplanation) _buildLoadingExplanation(),
+
+          // Gemini Explanation (text with voice option) - shows after loading
           if (_geminiExplanation != null) _buildGeminiExplanationCard(),
 
-          // Loading explanation indicator
-          if (_loadingExplanation) _buildLoadingExplanation(),
+          // AR Treatment Guide (optional - only for diseased plants, after explanation loaded)
+          if (_geminiExplanation != null && 
+              _result != null && 
+              !_result!.label.toLowerCase().contains('healthy'))
+            _buildARTreatmentButton(),
 
           const SizedBox(height: 100),
         ],
@@ -704,12 +717,6 @@ class _DiseaseScanScreenState extends State<DiseaseScanScreen> {
     if (_result == null) return const SizedBox.shrink();
 
     final isHealthy = _result!.label.toLowerCase().contains('healthy');
-    final confidenceColor =
-        _result!.confidence > 0.7
-            ? AppTheme.successGreen
-            : _result!.confidence > 0.5
-            ? AppTheme.warningOrange
-            : AppTheme.alertRed;
 
     return Container(
       margin: const EdgeInsets.all(16),
@@ -808,39 +815,123 @@ class _DiseaseScanScreenState extends State<DiseaseScanScreen> {
                   _result!.label,
                   Icons.local_hospital,
                 ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Icon(Icons.speed, color: confidenceColor, size: 20),
-                    const SizedBox(width: 8),
-                    Text(
-                      AppStrings.isHindi ? 'विश्वास स्तर:' : 'Confidence:',
-                      style: const TextStyle(fontSize: 14, color: Colors.grey),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: LinearProgressIndicator(
-                        value: _result!.confidence,
-                        backgroundColor: Colors.grey[200],
-                        valueColor: AlwaysStoppedAnimation(confidenceColor),
-                        minHeight: 8,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      '${(_result!.confidence * 100).toStringAsFixed(1)}%',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: confidenceColor,
-                      ),
-                    ),
-                  ],
-                ),
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildARTreatmentButton() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      width: double.infinity,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            const Color(0xFF6C5CE7),
+            const Color(0xFF0984E3),
+          ],
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF6C5CE7).withOpacity(0.3),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: _openARTreatmentGuide,
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.view_in_ar,
+                    color: Colors.white,
+                    size: 28,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        AppStrings.isHindi
+                            ? '🎯 AR उपचार मार्गदर्शिका खोलें'
+                            : AppStrings.isMarathi
+                                ? '🎯 AR उपचार मार्गदर्शक उघडा'
+                                : '🎯 Open AR Treatment Guide',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        AppStrings.isHindi
+                            ? 'कैमरे के साथ चरण-दर-चरण निर्देश देखें'
+                            : AppStrings.isMarathi
+                                ? 'कॅमेऱ्यासह पायरी-पायरीने सूचना पहा'
+                                : 'View step-by-step instructions with camera',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.9),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(
+                  Icons.arrow_forward_ios,
+                  color: Colors.white,
+                  size: 18,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openARTreatmentGuide() {
+    if (_result == null) return;
+
+    // Parse plant name and disease name from label (e.g. "Apple___Cedar_apple_rust")
+    String plantName = _result!.plant ?? 'Plant';
+    String diseaseName = _result!.label;
+    if (_result!.label.contains('___')) {
+      final parts = _result!.label.split('___');
+      plantName = parts[0].replaceAll('_', ' ');
+      diseaseName = parts[1].replaceAll('_', ' ');
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ARTreatmentScreen(
+          plantName: plantName,
+          diseaseName: diseaseName,
+          confidence: _result!.confidence,
+          diseaseImage: _selectedImage,
+        ),
       ),
     );
   }
@@ -976,15 +1067,9 @@ class _DiseaseScanScreenState extends State<DiseaseScanScreen> {
                     }
                   },
                   child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     decoration: BoxDecoration(
-                      color:
-                          _isTtsSpeaking
-                              ? Colors.red.withOpacity(0.3)
-                              : Colors.white.withOpacity(0.2),
+                      color: _isTtsSpeaking ? Colors.red.withOpacity(0.3) : Colors.white.withOpacity(0.2),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(color: Colors.white.withOpacity(0.5)),
                     ),
@@ -998,9 +1083,7 @@ class _DiseaseScanScreenState extends State<DiseaseScanScreen> {
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          _isTtsSpeaking
-                              ? AppStrings.stopListening
-                              : AppStrings.listenInMarathi,
+                          _isTtsSpeaking ? AppStrings.stopListening : AppStrings.listenInMarathi,
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 12,
@@ -1109,6 +1192,246 @@ class _DiseaseScanScreenState extends State<DiseaseScanScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildGalleryBottomSheet(List<Map<String, dynamic>> images) {
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.8,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: Column(
+        children: [
+          // Header
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppTheme.primaryGreen,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(20),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.photo_library, color: Colors.white),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    AppStrings.isHindi
+                        ? 'कैप्चर की गई छवियां (${images.length})'
+                        : 'Captured Images (${images.length})',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  onPressed: () async {
+                    final confirm = await showDialog<bool>(
+                      context: context,
+                      builder:
+                          (context) => AlertDialog(
+                            title: Text(
+                              AppStrings.isHindi ? 'सभी हटाएं?' : 'Delete All?',
+                            ),
+                            content: Text(
+                              AppStrings.isHindi
+                                  ? 'क्या आप सभी कैप्चर की गई छवियों को हटाना चाहते हैं?'
+                                  : 'Are you sure you want to delete all captured images?',
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context, false),
+                                child: Text(
+                                  AppStrings.isHindi ? 'रद्द करें' : 'Cancel',
+                                ),
+                              ),
+                              ElevatedButton(
+                                onPressed: () => Navigator.pop(context, true),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.red,
+                                ),
+                                child: Text(
+                                  AppStrings.isHindi ? 'हटाएं' : 'Delete',
+                                ),
+                              ),
+                            ],
+                          ),
+                    );
+
+                    if (confirm == true) {
+                      await ESP32CameraService.deleteAllImages();
+                      await _loadCapturedImageCount();
+                      if (mounted) {
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              AppStrings.isHindi
+                                  ? 'सभी छवियां हटा दी गईं'
+                                  : 'All images deleted',
+                            ),
+                          ),
+                        );
+                      }
+                    }
+                  },
+                  icon: const Icon(Icons.delete_outline, color: Colors.white),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close, color: Colors.white),
+                ),
+              ],
+            ),
+          ),
+          // Image Grid
+          Expanded(
+            child: GridView.builder(
+              padding: const EdgeInsets.all(16),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                childAspectRatio: 0.75,
+              ),
+              itemCount: images.length,
+              itemBuilder: (context, index) {
+                final image = images[index];
+                final filePath = image['filePath'] as String;
+                final capturedAt = image['capturedAt'] as DateTime;
+                final analyzed = image['analyzed'] as bool;
+
+                return GestureDetector(
+                  onTap: () => Navigator.pop(context, image),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color:
+                            analyzed
+                                ? AppTheme.primaryGreen
+                                : Colors.grey.shade300,
+                        width: 2,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // Image
+                        Expanded(
+                          child: ClipRRect(
+                            borderRadius: const BorderRadius.vertical(
+                              top: Radius.circular(10),
+                            ),
+                            child:
+                                File(filePath).existsSync()
+                                    ? Image.file(
+                                      File(filePath),
+                                      fit: BoxFit.cover,
+                                    )
+                                    : Container(
+                                      color: Colors.grey.shade200,
+                                      child: const Icon(
+                                        Icons.image_not_supported,
+                                        color: Colors.grey,
+                                      ),
+                                    ),
+                          ),
+                        ),
+                        // Info
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(
+                                    analyzed
+                                        ? Icons.check_circle
+                                        : Icons.circle_outlined,
+                                    size: 16,
+                                    color:
+                                        analyzed
+                                            ? AppTheme.primaryGreen
+                                            : Colors.grey,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Expanded(
+                                    child: Text(
+                                      analyzed
+                                          ? (AppStrings.isHindi
+                                              ? 'विश्लेषित'
+                                              : 'Analyzed')
+                                          : (AppStrings.isHindi
+                                              ? 'नया'
+                                              : 'New'),
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color:
+                                            analyzed
+                                                ? AppTheme.primaryGreen
+                                                : Colors.grey,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '${capturedAt.hour.toString().padLeft(2, '0')}:${capturedAt.minute.toString().padLeft(2, '0')}:${capturedAt.second.toString().padLeft(2, '0')}',
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton(
+                                  onPressed:
+                                      () => Navigator.pop(context, image),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppTheme.primaryGreen,
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 8,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    AppStrings.isHindi ? 'विश्लेषण' : 'Analyze',
+                                    style: const TextStyle(fontSize: 12),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
