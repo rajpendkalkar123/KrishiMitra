@@ -12,6 +12,7 @@ class ARTreatmentService {
   static String get _apiKey => EnvConfig.geminiApiKey;
   static const String _geminiUrl =
       'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
+  static const Duration _requestTimeout = Duration(seconds: 30);
 
   /// Generate AR treatment plan for detected disease
   static Future<ARTreatmentPlan> generateTreatmentPlan({
