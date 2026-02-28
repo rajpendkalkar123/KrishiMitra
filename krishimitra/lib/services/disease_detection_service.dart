@@ -11,7 +11,7 @@ class DiseaseDetectionService {
       'https://krishimitra-plant-diesease.onrender.com/predict';
   static const Duration _timeout = Duration(
     seconds: 90,
-  ); // Increased for cold start
+  ); // render free tier cold start takes time
 
   /// Upload image to the disease detection API and get prediction
   static Future<DiseaseResult> detectDisease(String imagePath) async {
