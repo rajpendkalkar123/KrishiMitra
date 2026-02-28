@@ -2,7 +2,7 @@
 
 **Developer:** rajpendkalkar123  
 **Repository:** https://github.com/rajpendkalkar123/KrishiMitra  
-**Last Updated:** February 27, 2026 at 2:30 PM IST
+**Last Updated:** February 28, 2026 at 10:00 AM IST
 
 An AI-powered agricultural assistant application built with Flutter that helps farmers make smarter decisions about crop selection, irrigation, disease detection, and market prices.
 
@@ -11,6 +11,8 @@ An AI-powered agricultural assistant application built with Flutter that helps f
 ✅ **AI Crop Recommendation** - Get personalized crop suggestions based on soil and climate  
 ✅ **Smart Irrigation Prediction** - Optimize water usage with ML-based predictions (99.42% accuracy)  
 ✅ **Plant Disease Detection** - Identify crop diseases using image recognition  
+✅ **AR Treatment Guide** - Camera-based augmented reality treatment instructions  
+✅ **Drone Simulation** - 3D drone flight simulation for farm surveys  
 ✅ **Real-time Weather Data** - Integrated weather forecasts for your location  
 ✅ **Market Intelligence** - Track commodity prices and market trends  
 ✅ **Multi-language Support** - Available in English and Hindi  
@@ -31,7 +33,7 @@ This is a Flutter application. To run this project:
 1. Install Flutter SDK (3.7.2 or higher)
 2. Clone this repository
 3. Run `flutter pub get` to install dependencies
-4. Configure API endpoints in environment files
+4. Copy `.env.example` to `.env` and add your API keys
 5. Run `flutter run` to launch the app
 
 ## Resources
