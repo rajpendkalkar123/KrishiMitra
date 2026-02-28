@@ -1,18 +1,15 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
-import 'package:latlong2/latlong.dart';
 import 'package:krishimitra/presentation/widgets/dashboard_widgets.dart'
     show FarmHealthScore;
 import 'package:krishimitra/presentation/providers/app_providers.dart';
-import 'package:krishimitra/presentation/screens/farm_sector_map_screen.dart';
 import 'package:krishimitra/presentation/screens/farm_list_screen.dart';
 import 'package:krishimitra/presentation/screens/market_intelligence_screen.dart';
 import 'package:krishimitra/presentation/screens/ai_advisor_screen.dart';
-import 'package:krishimitra/presentation/widgets/saved_farms_widget.dart';
+import 'package:krishimitra/presentation/screens/learning_hub_screen.dart';
 import 'package:krishimitra/utils/app_strings.dart'
     show AppStrings, AppLanguage;
 import 'package:krishimitra/utils/app_theme.dart';
@@ -45,212 +42,6 @@ class DashboardScreen extends ConsumerWidget {
             ),
 
             const SizedBox(height: 20),
-
-            // ══ MY FIELDS - Map section ════════════════════════════════════
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  _SectionTitle(title: isHindi ? 'मेरे खेत' : 'My Fields'),
-                  TextButton.icon(
-                    onPressed:
-                        () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const FarmListScreen(),
-                          ),
-                        ),
-                    icon: const Icon(Icons.arrow_forward_rounded, size: 18),
-                    label: Text(
-                      isHindi ? 'सभी देखें' : 'See all',
-                      style: GoogleFonts.poppins(fontSize: 14),
-                    ),
-                    style: TextButton.styleFrom(
-                      foregroundColor: AppTheme.primaryGreen,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Map card
-            Container(
-              height: 240,
-              margin: const EdgeInsets.symmetric(horizontal: 24),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(24),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppTheme.primaryGreen.withOpacity(0.15),
-                    blurRadius: 16,
-                    offset: const Offset(0, 6),
-                  ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(24),
-                child: Stack(
-                  children: [
-                    FlutterMap(
-                      options: const MapOptions(
-                        initialCenter: LatLng(20.5937, 78.9629),
-                        initialZoom: 5.0,
-                        interactionOptions: InteractionOptions(
-                          flags:
-                              InteractiveFlag.pinchZoom | InteractiveFlag.drag,
-                        ),
-                      ),
-                      children: [
-                        TileLayer(
-                          urlTemplate:
-                              'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                          userAgentPackageName: 'com.krishimitra.app',
-                        ),
-                      ],
-                    ),
-                    // Overlay with tap action
-                    Positioned.fill(
-                      child: Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          onTap:
-                              () => Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const FarmSectorMapScreen(),
-                                ),
-                              ),
-                          child: Container(
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                colors: [
-                                  Colors.transparent,
-                                  Colors.black.withOpacity(0.3),
-                                ],
-                              ),
-                            ),
-                            alignment: Alignment.bottomCenter,
-                            padding: const EdgeInsets.all(16),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 10,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(12),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.1),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    Icons.map_rounded,
-                                    color: AppTheme.primaryGreen,
-                                    size: 20,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    isHindi
-                                        ? 'पूरा नक्शा देखें'
-                                        : 'View Full Map',
-                                    style: GoogleFonts.poppins(
-                                      color: AppTheme.darkGreen,
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Icon(
-                                    Icons.arrow_forward_rounded,
-                                    color: AppTheme.primaryGreen,
-                                    size: 18,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 24),
-            const SavedFarmsWidget(),
-
-            const SizedBox(height: 36),
-
-            // ══ PRIMARY ACTIONS - Large prominent buttons ══════════════════
-            _SectionTitle(
-              title: isHindi ? 'मुख्य सेवाएं' : 'Primary Services',
-              subtitle: isHindi ? 'सबसे महत्वपूर्ण' : 'Most important',
-              sectionPadding: const EdgeInsets.symmetric(horizontal: 24),
-            ),
-            const SizedBox(height: 16),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Column(
-                children: [
-                  // Crop Recommendation - LARGE
-                  _LargePrimaryActionCard(
-                    icon: Icons.agriculture_rounded,
-                    title: isHindi ? 'फसल सिफारिश' : 'Crop Recommendation',
-                    subtitle:
-                        isHindi
-                            ? 'मिट्टी और मौसम के आधार पर सर्वोत्तम फसल'
-                            : 'Best crop based on soil & weather',
-                    gradientColors: const [
-                      Color(0xFF4CAF50),
-                      Color(0xFF81C784),
-                    ],
-                    onTap:
-                        () => Navigator.pushNamed(
-                          context,
-                          '/crop-recommendation',
-                        ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // AI Advisor - LARGE
-                  _LargePrimaryActionCard(
-                    icon: Icons.psychology_rounded,
-                    title: isHindi ? 'AI सलाहकार' : 'AI Advisor',
-                    subtitle:
-                        isHindi
-                            ? 'अपने खेती के सवालों का जवाब पाएं'
-                            : 'Get answers to your farming questions',
-                    gradientColors: const [
-                      Color(0xFF7E57C2),
-                      Color(0xFFAB47BC),
-                    ],
-                    onTap:
-                        () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const AIAdvisorScreen(),
-                          ),
-                        ),
-                  ),
-                ],
-              ),
-            ),
 
             const SizedBox(height: 36),
 
@@ -305,24 +96,8 @@ class DashboardScreen extends ConsumerWidget {
                     children: [
                       Expanded(
                         child: _MediumActionCard(
-                          icon: Icons.calendar_today_rounded,
-                          title: isHindi ? 'फसल कैलेंडर' : 'Task Calendar',
-                          gradientColors: const [
-                            Color(0xFFEF5350),
-                            Color(0xFFE57373),
-                          ],
-                          onTap:
-                              () => Navigator.pushNamed(
-                                context,
-                                '/task-calendar',
-                              ),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: _MediumActionCard(
-                          icon: Icons.map_rounded,
-                          title: isHindi ? 'खेत नक्शा' : 'Farm Map',
+                          icon: Icons.grass_rounded,
+                          title: isHindi ? 'मेरे खेत' : 'My Farms',
                           gradientColors: const [
                             Color(0xFF00897B),
                             Color(0xFF4DB6AC),
@@ -331,14 +106,104 @@ class DashboardScreen extends ConsumerWidget {
                               () => Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (_) => const FarmSectorMapScreen(),
+                                  builder: (_) => const FarmListScreen(),
                                 ),
+                              ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: _MediumActionCard(
+                          icon: Icons.flight,
+                          title: isHindi ? 'ड्रोन सर्वेक्षण' : 'Drone Survey',
+                          gradientColors: const [
+                            Color(0xFF00695C),
+                            Color(0xFF4CAF50),
+                          ],
+                          onTap:
+                              () => Navigator.pushNamed(
+                                context,
+                                '/drone-simulation',
                               ),
                         ),
                       ),
                     ],
                   ),
                 ],
+              ),
+            ),
+
+            const SizedBox(height: 36),
+
+            // ══ SERVICES - Large prominent buttons ═════════════════════════
+            _SectionTitle(
+              title: isHindi ? 'मुख्य सेवाएं' : 'Services',
+              subtitle: isHindi ? 'सबसे महत्वपूर्ण' : 'Most important',
+              sectionPadding: const EdgeInsets.symmetric(horizontal: 24),
+            ),
+            const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Column(
+                children: [
+                  // Crop Recommendation - LARGE
+                  _LargePrimaryActionCard(
+                    icon: Icons.agriculture_rounded,
+                    title: isHindi ? 'फसल सिफारिश' : 'Crop Recommendation',
+                    subtitle:
+                        isHindi
+                            ? 'मिट्टी और मौसम के आधार पर सर्वोत्तम फसल'
+                            : 'Best crop based on soil & weather',
+                    gradientColors: const [
+                      Color(0xFF4CAF50),
+                      Color(0xFF81C784),
+                    ],
+                    onTap:
+                        () => Navigator.pushNamed(
+                          context,
+                          '/crop-recommendation',
+                        ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // AI Advisor - LARGE
+                  _LargePrimaryActionCard(
+                    icon: Icons.psychology_rounded,
+                    title: isHindi ? 'AI सलाहकार' : 'AI Advisor',
+                    subtitle:
+                        isHindi
+                            ? 'अपने खेती के सवालों का जवाब पाएं'
+                            : 'Get answers to your farming questions',
+                    gradientColors: const [
+                      Color(0xFF7E57C2),
+                      Color(0xFFAB47BC),
+                    ],
+                    onTap:
+                        () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const AIAdvisorScreen(),
+                          ),
+                        ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 36),
+
+            // ══ LEARNING HUB ═══════════════════════════════════════════════
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: _LargePrimaryActionCard(
+                icon: Icons.menu_book_rounded,
+                title: isHindi ? 'सीखें और जानें' : 'Learn & Grow',
+                subtitle:
+                    isHindi
+                        ? 'सरकारी योजनाएं, खेती ज्ञान, वित्तीय सहायता'
+                        : 'Govt schemes, farming tips, finance help',
+                gradientColors: const [Color(0xFF1B5E20), Color(0xFF43A047)],
+                onTap: () => Navigator.pushNamed(context, '/learning-hub'),
               ),
             ),
 
@@ -389,28 +254,6 @@ class DashboardScreen extends ConsumerWidget {
                               ),
                         ),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _MediumActionCard(
-                          icon: Icons.precision_manufacturing_rounded,
-                          title: isHindi ? 'उपकरण किराया' : 'Equipment',
-                          gradientColors: const [
-                            Color(0xFF5E35B1),
-                            Color(0xFF9575CD),
-                          ],
-                          onTap:
-                              () => Navigator.pushNamed(
-                                context,
-                                '/equipment-rental',
-                              ),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(child: Container()), // Empty space
                     ],
                   ),
                 ],
